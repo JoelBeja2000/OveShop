@@ -174,6 +174,16 @@ const DecorationCarousel: React.FC<DecorationCarouselProps> = ({ onSelectItem, s
       visualBehavior: 'generative',
       image: 'https://i.postimg.cc/XNC7Pxbm/ai_generated_green_moss_with_grass_clip_art_free_png.png',
       description: 'Pequeñas dunas de musgo esponjoso con micro-textura volumétrica.'
+    },
+    {
+      id: 'linea_de_fa',
+      name: 'Línea de Fa',
+      category: DecorationCategory.MESA,
+      price: 1.5, // Price per gram (example)
+      pricingType: PricingType.WEIGHT,
+      visualBehavior: 'generative',
+      image: 'https://i.postimg.cc/43hNy8hT/image-removebg-preview-(4).png',
+      description: 'Elemento decorativo lineal para mesas. Precio calculado por peso (gramos).'
     }
   ];
 

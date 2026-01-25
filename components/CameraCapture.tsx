@@ -229,6 +229,56 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({
     window.addEventListener('touchend', onEnd);
   };
 
+  const handleRotationStart = (id: string, e: React.MouseEvent | React.TouchEvent) => {
+    e.stopPropagation();
+    const item = placedItems.find(i => i.id === id);
+    if (!item || !canvasRef.current) return;
+    const el = itemRefs.current.get(id);
+
+    const rect = canvasRef.current.getBoundingClientRect();
+    const cx = rect.left + (item.x / 100) * rect.width;
+    const cy = rect.top + (item.y / 100) * rect.height;
+
+    const isTouch = 'touches' in e;
+    const startX = isTouch ? (e as React.TouchEvent).touches[0].clientX : (e as React.MouseEvent).clientX;
+    const startY = isTouch ? (e as React.TouchEvent).touches[0].clientY : (e as React.MouseEvent).clientY;
+
+    const startAngle = Math.atan2(startY - cy, startX - cx);
+    const initialRotation = item.rotation;
+    let rafId: number;
+    let finalRotation = initialRotation;
+
+    const onMove = (mv: MouseEvent | TouchEvent) => {
+      if ('touches' in mv) mv.preventDefault();
+      const mvX = 'touches' in mv ? mv.touches[0].clientX : mv.clientX;
+      const mvY = 'touches' in mv ? mv.touches[0].clientY : mv.clientY;
+      const currentAngle = Math.atan2(mvY - cy, mvX - cx);
+      const delta = (currentAngle - startAngle) * 180 / Math.PI;
+      finalRotation = initialRotation + delta;
+
+      if (el) {
+        if (rafId) cancelAnimationFrame(rafId);
+        rafId = requestAnimationFrame(() => {
+          el.style.transform = `translate(-50%, -50%) rotate(${finalRotation}deg) scale(${item.scale})`;
+        });
+      }
+    };
+
+    const onEnd = () => {
+      window.removeEventListener('mousemove', onMove as any);
+      window.removeEventListener('mouseup', onEnd);
+      window.removeEventListener('touchmove', onMove as any);
+      window.removeEventListener('touchend', onEnd);
+      if (rafId) cancelAnimationFrame(rafId);
+      setPlacedItems(prev => prev.map(i => i.id === id ? { ...i, rotation: finalRotation } : i));
+    };
+
+    window.addEventListener('mousemove', onMove as any);
+    window.addEventListener('mouseup', onEnd);
+    window.addEventListener('touchmove', onMove as any, { passive: false });
+    window.addEventListener('touchend', onEnd);
+  };
+
   return (
     <div
       className="w-full h-full flex items-center justify-center relative select-none"
@@ -316,7 +366,10 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({
                 <img
                   src={item.image}
                   className="w-full h-full object-contain drop-shadow-2xl"
-                  style={{ filter: `hue-rotate(${item.hueRotate}deg) saturate(${item.saturation}) brightness(${item.brightness})` }}
+                  style={{
+                    filter: `hue-rotate(${item.hueRotate}deg) saturate(${item.saturation}) brightness(${item.brightness})`,
+                    transform: `scaleX(${item.scaleX || 1})`
+                  }}
                   alt=""
                 />
               </div>
@@ -325,17 +378,30 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({
                 <>
                   {!isWarpMode && (
                     <>
+                      {/* ROTATION HANDLE (LOLLIPOP) */}
+                      <div
+                        onMouseDown={(e) => handleRotationStart(item.id, e)}
+                        onTouchStart={(e) => handleRotationStart(item.id, e)}
+                        className="absolute -top-16 left-1/2 -translate-x-1/2 w-10 h-16 flex flex-col items-center justify-end z-[300] cursor-grab group origin-bottom"
+                        style={{ transform: `translateX(-50%) scale(${1 / item.scale})` }}
+                      >
+                        <div className="w-0.5 h-8 bg-white/80 shadow-sm"></div>
+                        <div className="w-5 h-5 bg-white rounded-full shadow-md flex items-center justify-center transform group-active:scale-110 transition-transform">
+                          <i className="fa-solid fa-rotate-right text-[8px] text-black/50"></i>
+                        </div>
+                      </div>
+
                       {/* TIRADORES DE ESCALA MEJORADOS PARA TOUCH */}
-                      <div onMouseDown={(e) => handleResizeStart(item.id, e)} onTouchStart={(e) => handleResizeStart(item.id, e)} className="absolute -top-4 -left-4 w-10 h-10 flex items-center justify-center z-[300] cursor-nwse-resize group">
+                      <div onMouseDown={(e) => handleResizeStart(item.id, e)} onTouchStart={(e) => handleResizeStart(item.id, e)} style={{ transform: `scale(${1 / item.scale})` }} className="absolute -top-4 -left-4 w-10 h-10 flex items-center justify-center z-[300] cursor-nwse-resize group">
                         <div className="w-5 h-5 bg-white rounded-full border-2 border-black shadow-lg group-active:scale-125 transition-transform"></div>
                       </div>
-                      <div onMouseDown={(e) => handleResizeStart(item.id, e)} onTouchStart={(e) => handleResizeStart(item.id, e)} className="absolute -top-4 -right-4 w-10 h-10 flex items-center justify-center z-[300] cursor-nesw-resize group">
+                      <div onMouseDown={(e) => handleResizeStart(item.id, e)} onTouchStart={(e) => handleResizeStart(item.id, e)} style={{ transform: `scale(${1 / item.scale})` }} className="absolute -top-4 -right-4 w-10 h-10 flex items-center justify-center z-[300] cursor-nesw-resize group">
                         <div className="w-5 h-5 bg-white rounded-full border-2 border-black shadow-lg group-active:scale-125 transition-transform"></div>
                       </div>
-                      <div onMouseDown={(e) => handleResizeStart(item.id, e)} onTouchStart={(e) => handleResizeStart(item.id, e)} className="absolute -bottom-4 -left-4 w-10 h-10 flex items-center justify-center z-[300] cursor-nesw-resize group">
+                      <div onMouseDown={(e) => handleResizeStart(item.id, e)} onTouchStart={(e) => handleResizeStart(item.id, e)} style={{ transform: `scale(${1 / item.scale})` }} className="absolute -bottom-4 -left-4 w-10 h-10 flex items-center justify-center z-[300] cursor-nesw-resize group">
                         <div className="w-5 h-5 bg-white rounded-full border-2 border-black shadow-lg group-active:scale-125 transition-transform"></div>
                       </div>
-                      <div onMouseDown={(e) => handleResizeStart(item.id, e)} onTouchStart={(e) => handleResizeStart(item.id, e)} className="absolute -bottom-4 -right-4 w-10 h-10 flex items-center justify-center z-[300] cursor-nwse-resize group">
+                      <div onMouseDown={(e) => handleResizeStart(item.id, e)} onTouchStart={(e) => handleResizeStart(item.id, e)} style={{ transform: `scale(${1 / item.scale})` }} className="absolute -bottom-4 -right-4 w-10 h-10 flex items-center justify-center z-[300] cursor-nwse-resize group">
                         <div className="w-5 h-5 bg-white rounded-full border-2 border-black shadow-lg group-active:scale-125 transition-transform"></div>
                       </div>
                     </>
@@ -363,7 +429,8 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({
 
                   {/* BARRA DE ACCIONES FLOTANTE ADAPTADA */}
                   <div
-                    className="absolute -bottom-24 left-1/2 -translate-x-1/2 flex items-center gap-3 bg-black/95 backdrop-blur-3xl p-2 rounded-full border border-white/10 z-[400] shadow-2xl scale-100 md:scale-90 animate-fade-in-up"
+                    className="absolute -bottom-24 left-1/2 flex items-center gap-3 bg-black/95 backdrop-blur-3xl p-2 rounded-full border border-white/10 z-[400] shadow-2xl animate-fade-in-up origin-top"
+                    style={{ transform: `translateX(-50%) scale(${1 / item.scale})` }}
                     onMouseDown={(e) => e.stopPropagation()}
                     onTouchStart={(e) => e.stopPropagation()}
                   >
@@ -375,84 +442,8 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({
                     </button>
 
                     <button
-                      onMouseDown={(e) => {
-                        e.stopPropagation();
-                        const el = itemRefs.current.get(item.id);
-                        const rect = canvasRef.current!.getBoundingClientRect();
-                        const cx = rect.left + (item.x / 100) * rect.width;
-                        const cy = rect.top + (item.y / 100) * rect.height;
-                        let rafId: number;
-                        let finalRotation = item.rotation;
-
-                        const onMove = (mv: MouseEvent | TouchEvent) => {
-                          if ('touches' in mv) mv.preventDefault();
-                          const mvX = 'touches' in mv ? mv.touches[0].clientX : mv.clientX;
-                          const mvY = 'touches' in mv ? mv.touches[0].clientY : mv.clientY;
-                          const angle = Math.atan2(mvY - cy, mvX - cx);
-                          finalRotation = (angle * 180 / Math.PI) + 90;
-
-                          if (el) {
-                            if (rafId) cancelAnimationFrame(rafId);
-                            rafId = requestAnimationFrame(() => {
-                              el.style.transform = `translate(-50%, -50%) rotate(${finalRotation}deg) scale(${item.scale})`;
-                            });
-                          }
-                        };
-                        const onEnd = () => {
-                          window.removeEventListener('mousemove', onMove as any);
-                          window.removeEventListener('mouseup', onEnd);
-                          window.removeEventListener('touchmove', onMove as any);
-                          window.removeEventListener('touchend', onEnd);
-                          if (rafId) cancelAnimationFrame(rafId);
-                          setPlacedItems(prev => prev.map(i => i.id === item.id ? { ...i, rotation: finalRotation } : i));
-                        };
-                        window.addEventListener('mousemove', onMove as any);
-                        window.addEventListener('mouseup', onEnd);
-                        window.addEventListener('touchmove', onMove as any, { passive: false });
-                        window.addEventListener('touchend', onEnd);
-                      }}
-                      onTouchStart={(e) => {
-                        e.stopPropagation();
-                        // Logic duplicated here for touchStart binding if React doesn't map overlapping handlers well, 
-                        // but actually the handler above handles both event types in listeners. 
-                        // However, we need to trigger the INIT logic.
-                        // Actually, let's just make a shared handler function to keep it DRY or copy-paste carefully.
-                        // For simplicity in this diff, I will just call the handler.
-                        // Wait, the onMouseDown above is defining functions closing over local vars.
-                        // I will duplicate logic for touchStart to be safe and explicit, or better:
-                        // Create a unified internal handler and call it.
-                        const el = itemRefs.current.get(item.id);
-                        const rect = canvasRef.current!.getBoundingClientRect();
-                        const cx = rect.left + (item.x / 100) * rect.width;
-                        const cy = rect.top + (item.y / 100) * rect.height;
-                        let rafId: number;
-                        let finalRotation = item.rotation;
-
-                        const onMove = (mv: MouseEvent | TouchEvent) => {
-                          if ('touches' in mv) mv.preventDefault();
-                          const mvX = 'touches' in mv ? mv.touches[0].clientX : mv.clientX;
-                          const mvY = 'touches' in mv ? mv.touches[0].clientY : mv.clientY;
-                          const angle = Math.atan2(mvY - cy, mvX - cx);
-                          finalRotation = (angle * 180 / Math.PI) + 90;
-
-                          if (el) {
-                            if (rafId) cancelAnimationFrame(rafId);
-                            rafId = requestAnimationFrame(() => {
-                              el.style.transform = `translate(-50%, -50%) rotate(${finalRotation}deg) scale(${item.scale})`;
-                            });
-                          }
-                        };
-                        const onEnd = () => {
-                          window.removeEventListener('mousemove', onMove as any);
-                          window.removeEventListener('mouseup', onEnd);
-                          window.removeEventListener('touchmove', onMove as any);
-                          window.removeEventListener('touchend', onEnd);
-                          if (rafId) cancelAnimationFrame(rafId);
-                          setPlacedItems(prev => prev.map(i => i.id === item.id ? { ...i, rotation: finalRotation } : i));
-                        };
-                        window.addEventListener('touchmove', onMove as any, { passive: false });
-                        window.addEventListener('touchend', onEnd);
-                      }}
+                      onMouseDown={(e) => handleRotationStart(item.id, e)}
+                      onTouchStart={(e) => handleRotationStart(item.id, e)}
                       className="w-10 h-10 md:w-8 md:h-8 bg-white/5 text-white/40 rounded-full hover:bg-white hover:text-black transition-all flex items-center justify-center"
                     >
                       <i className="fa-solid fa-rotate text-[10px] md:text-[9px]"></i>
@@ -465,6 +456,18 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({
                       className={`w-10 h-10 md:w-8 md:h-8 rounded-full flex items-center justify-center transition-all ${isWarpMode ? 'bg-alpine-sap text-black' : 'bg-white/5 text-white'}`}
                     >
                       <i className="fa-solid fa-vector-square text-[10px] md:text-[9px]"></i>
+                    </button>
+
+                    <div className="w-px h-6 md:h-4 bg-white/10 mx-1"></div>
+
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setPlacedItems(prev => prev.map(i => i.id === item.id ? { ...i, scaleX: (i.scaleX || 1) * -1 } : i));
+                      }}
+                      className="w-10 h-10 md:w-8 md:h-8 bg-white/5 text-white/40 rounded-full hover:bg-white hover:text-black transition-all flex items-center justify-center"
+                    >
+                      <i className="fa-solid fa-right-left text-[10px] md:text-[9px]"></i>
                     </button>
                   </div>
                 </>

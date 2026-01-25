@@ -9,7 +9,8 @@ export enum DecorationCategory {
 
 export enum PricingType {
   UNIT = 'unidad',
-  AREA = 'm²'
+  AREA = 'm²',
+  WEIGHT = 'g'
 }
 
 export type VisualBehavior = 'strict' | 'generative';
@@ -40,6 +41,7 @@ export interface PlacedItem {
   x: number;
   y: number;
   scale: number;
+  scaleX?: number; // 1 or -1 for mirroring
   aspectRatio: number;
   rotation: number;
   image: string;

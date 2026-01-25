@@ -69,23 +69,27 @@ export class GeminiAIAdapter {
 
     private getStrictItemPrompt(item: PlacedItem): string {
         return `   - [OBRA DE AUTOR / FIJO] "${item.name.toUpperCase()}": 
-             * MANTENER ASPECTO VISUAL EXACTO: No cambiar patrones, colores ni formas internas. Es una pieza de diseño específica.
-             * INTEGRACIÓN: Solo aplicar iluminación, sombras y corrección de color global para que encaje en la foto.`;
+             * PRIORIDAD: INTEGRACIÓN LUMÍNICA FOTOREALISTA.
+             * GEOMETRÍA/TEXTURA: Mantener la identidad visual (patrón/forma/colores base) al 100%.
+             * ILUMINACIÓN (CRÍTICO): EL OBJETO DEBE RECIBIR LA LUZ DE LA HABITACIÓN. Generar sombreado realista (self-shadowing) y brillos según la dirección de la luz de la 'Original Photo'.
+             * BORDES: Fundir los bordes con el entorno para eliminar el efecto "pegatina".
+             * OCLUSIÓN: Este objeto es SÓLIDO y OPACO. Bloquea totalmente lo que hay detrás.`;
     }
 
     private getCreativeItemPrompt(item: PlacedItem): string {
         return `   - [ELEMENTO GENERATIVO / AUTO] "${item.name.toUpperCase()}": 
              * REIMAGINAR COMPLETAMENTE: Usar la mancha de color/forma del blueprint solo como guía de volumen y posición.
-             * GENERAR DESDE CERO: Crear una versión hiper-realista, de alta gama y materialidad premium (texturas ricas, imperfecciones reales).
-             * COHERENCIA: Si es un objeto orgánico (planta, roca), que parezca vivo. Si es manufacturado, acabados perfectos.`;
+             * ADAPTAR POSICIÓN 3D Y GRAVEDAD: Si el objeto en el blueprint está rotado o "tumbado", GENERARLO TUMBADO/ACOSTADO en 3D sobre la superficie. NO generar una persona de pie rotada 90 grados.
+             * INTERACCIÓN FÍSICA: Que el objeto pese sobre la superficie, interactúe con el suelo/mesa (sombras de contacto, deformación por peso).
+             * ESTÉTICA: Versión hiper-realista, de alta gama. Si es persona, postura natural acorde a la inclinación.`;
     }
 
     private buildPrompt(strictItems: string, creativeItems: string): string {
-        return `ACT AS AN EXPERT INTERIOR DESIGN CGI ARTIST. YOUR GOAL IS TO MERGE A "PLACEMENT BLUEPRINT" INTO AN "ORIGINAL PHOTO" WITH PERFECT REALISM.
+        return `ACT AS AN EXPERT INTERIOR DESIGN CGI ARTIST. YOUR GOAL IS TO IMPOSE A "VIRTUAL LAYER" ONTO AN "ORIGINAL PHOTO" WITH PERFECT REALISM.
 
       CONTEXT:
       - The "Original Photo" is the real room.
-      - The "Placement Blueprint" contains rough cutouts of items placed by the user.
+      - The "Placement Blueprint" contains items placed by the user.
 
       INSTRUCTIONS FOR OBJECT PLACEMENT & VISUAL BEHAVIOR:
       
@@ -101,13 +105,16 @@ export class GeminiAIAdapter {
             - IMPROVE materials, textures, and geometry. Make it look expensive/premium.
             - If the blueprint looks flat or low-res, IGNORE the artifacting and render a perfect 3D object in that space.
 
-      2. **SPATIAL INTELLIGENCE & OCCLUSION:**
+      2. **SPATIAL INTELLIGENCE & STRICT OCCLUSION:**
+         - **OPAQUE LAYER:** The items in the Blueprint are SOLID OPAQUE OBJECTS. They completely OBSCURE the Original Photo background behind them.
+         - **NO BLEEDING:** DO NOT render the original background (e.g. monitor screens, wall details) inside the boundaries of the blueprint items. The created item MUST be on top.
+         - **SCREEN COVERAGE:** If a placed item covers a TV or Monitor in the original photo, the screen is now GONE/COVERED. Do not blend the original screen content with the new item.
          - **DEPTH AWARENESS:** If a placed object is positioned "behind" a real object in the photo (e.g., behind a sofa edge, behind a person), YOU MUST MASK IT. Do not paint over foreground elements unless the object is explicitly in front.
-         - **SMART REPLACEMENT:** If a placed object (like a rug or big furniture) COMPLETELY COVERS a real object in the photo, DELETE the real object from the scene mentally and render the new one on top definitively.
-         - **SURFACE CONTACT:** 
-           * Wall items must cast close drop shadows.
-           * Floor items must have ambient occlusion at the base.
-           * Table items must reflect if the surface is glossy.
+      3. **LIGHTING & ATMOSPHERE (THE GLUE):**
+         - **RELIGHTING**: The Placement Blueprint items are currently "unit" lit. YOU MUST RELIGHT THEM to match the scene.
+         - **SHADOWS**: Every placed item MUST cast a realistic shadow onto the floor/walls/furniture.
+         - **REFLECTIONS**: If the item is near a screen or glossy table, generate the reflected light.
+         - **GRAIN**: Apply the same ISO noise/film grain as the Original Photo to the new items.
 
       3. **SCENE COHERENCE:**
          - MATCH the grain, noise, and focus/blur of the Original Photo.

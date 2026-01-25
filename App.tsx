@@ -123,6 +123,11 @@ const App: React.FC = () => {
   const calculateItemPrice = (item: PlacedItem) => {
     if (item.pricingType === PricingType.UNIT) {
       return item.price;
+    } else if (item.pricingType === PricingType.WEIGHT) {
+      // Estimate: 1 scale unit ~ 100g? Let's say price is per 10g.
+      // Or price provided is per gram, and we estimate grams based on size.
+      // Let's assume density factor. relative scale 1 = 10g.
+      return item.price * item.scale * 10;
     } else {
       const area = Math.pow(item.scale, 2) * item.aspectRatio;
       return item.price * area;
@@ -189,10 +194,12 @@ const App: React.FC = () => {
             </div>
           </div>
           
+          ${renderedImage ? `
           <div class="project-image">
             <img src="${renderedImage}" alt="Proyecto Renderizado" />
             <div class="image-caption">Visualización Fotorealista del Proyecto Final</div>
           </div>
+          ` : ''}
           
           <table>
             <thead>
@@ -379,6 +386,14 @@ const App: React.FC = () => {
               <div className="text-2xl font-black text-white tracking-tighter leading-none mb-4">
                 <span className="text-sm mr-1">$</span>{totalPrice.toLocaleString(undefined, { minimumFractionDigits: 1 })}
               </div>
+
+              <button
+                onClick={handleDownloadInvoice}
+                className="w-full h-8 mb-3 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center gap-2 hover:bg-white/10 transition-all group"
+              >
+                <i className="fa-solid fa-receipt text-[10px] text-white/40 group-hover:text-white"></i>
+                <span className="text-[7px] font-bold uppercase tracking-widest text-white/50 group-hover:text-white">Descargar Ticket</span>
+              </button>
 
               {!renderedImage && placedItems.length > 0 && (
                 <button onClick={processWithAI} disabled={isRendering} className="w-full h-12 rounded-xl bg-alpine-sap text-black font-black text-[9px] uppercase tracking-[0.2em] flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-95 transition-all shadow-lg shadow-alpine-sap/10">
