@@ -3,7 +3,8 @@ export enum DecorationCategory {
   SUELO = 'Suelo',
   PARED = 'Pared',
   MESA = 'Mesa / Decoración',
-  TECHO = 'Techo / Superior'
+  TECHO = 'Techo / Superior',
+  PERSONA = 'Personas'
 }
 
 export enum PricingType {

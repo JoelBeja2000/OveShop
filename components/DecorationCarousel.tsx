@@ -101,6 +101,28 @@ const DecorationCarousel: React.FC<DecorationCarouselProps> = ({ onSelectItem, s
       image: 'https://i.postimg.cc/qvHsg0yg/cuadro_mussgo_cuadrado_2_removebg_preview.png',
       description: 'Diorama tridimensional topográfico que representa relieve con musgo verde y zonas texturizadas beige/blanco.'
     },
+    {
+      id: 'estructura_colgante_roja',
+      name: 'Lámpara Colgante Floral',
+      category: DecorationCategory.TECHO,
+      price: 380,
+      pricingType: PricingType.UNIT,
+      visualBehavior: 'strict',
+      image: 'https://i.postimg.cc/KzDDBYSp/image-removebg-preview.png',
+      description: 'Escultura lumínica de techo con forma helicoidal y luz LED integrada, revestida con arreglos florales preservados en tonos rojos, cobre y burdeos.'
+    },
+
+    // PERSONAS
+    {
+      id: 'persona_javi',
+      name: 'Javi',
+      category: DecorationCategory.PERSONA,
+      price: 0,
+      pricingType: PricingType.UNIT,
+      visualBehavior: 'generative',
+      image: 'https://i.postimg.cc/C5t7LQVF/image-removebg-preview-(3).png',
+      description: 'Persona real. Se adapta al entorno y posición.'
+    },
 
     // ELEMENTOS ORGÁNICOS - MODO AUTO (GENERATIVE) - MESA/SUELO
     {

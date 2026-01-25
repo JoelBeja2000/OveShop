@@ -10,6 +10,7 @@ const WebcamCapture: React.FC<WebcamCaptureProps> = ({ onCapture, onClose }) => 
     const videoRef = useRef<HTMLVideoElement>(null);
     const [stream, setStream] = useState<MediaStream | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [isPortrait, setIsPortrait] = useState(false);
 
     useEffect(() => {
         const startCamera = async () => {
@@ -51,9 +52,15 @@ const WebcamCapture: React.FC<WebcamCaptureProps> = ({ onCapture, onClose }) => 
         }
     };
 
+    const handleLoadedMetadata = () => {
+        if (videoRef.current) {
+            setIsPortrait(videoRef.current.videoHeight > videoRef.current.videoWidth);
+        }
+    };
+
     return (
         <div className="fixed inset-0 z-[1000] bg-black/90 flex flex-col items-center justify-center p-4">
-            <div className="relative w-full max-w-4xl aspect-video bg-black rounded-3xl overflow-hidden border border-white/10 shadow-2xl">
+            <div className={`relative w-full max-w-4xl bg-black rounded-3xl overflow-hidden border border-white/10 shadow-2xl transition-all duration-300 ${isPortrait ? 'aspect-[9/16] h-[85vh] w-auto' : 'aspect-video w-full'}`}>
                 {error ? (
                     <div className="flex items-center justify-center h-full text-white/50">
                         <p>{error}</p>
@@ -61,6 +68,7 @@ const WebcamCapture: React.FC<WebcamCaptureProps> = ({ onCapture, onClose }) => 
                 ) : (
                     <video
                         ref={videoRef}
+                        onLoadedMetadata={handleLoadedMetadata}
                         autoPlay
                         playsInline
                         muted

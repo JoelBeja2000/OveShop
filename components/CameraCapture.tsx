@@ -44,6 +44,7 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({
   placedItems, setPlacedItems, selectedId, setSelectedId, externalBackground, onDropItem
 }) => {
   const canvasRef = useRef<HTMLDivElement>(null);
+  const itemRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const [aspectRatio, setAspectRatio] = useState<number>(16 / 9);
   const [isWarpMode, setIsWarpMode] = useState(false);
 
@@ -61,6 +62,9 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({
     if (!isTouch && (e as React.MouseEvent).button !== 0) return;
     e.stopPropagation();
 
+    // Prevent scrolling on touch devices
+    // if (isTouch) e.preventDefault(); // CAUTION: Calling this on start might block click? No, but mainly used on move.
+
     if (selectedId !== id) {
       setSelectedId(id);
       setIsWarpMode(false);
@@ -73,22 +77,53 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({
     const item = placedItems.find(i => i.id === id);
     if (!item) return;
 
+    const el = itemRefs.current.get(id);
+
     const initialX = item.x;
     const initialY = item.y;
+    let rafId: number;
 
     const onMove = (mv: MouseEvent | TouchEvent) => {
+      if ('touches' in mv) mv.preventDefault(); // Prevent scroll while dragging
+
       const currentX = 'touches' in mv ? mv.touches[0].clientX : mv.clientX;
       const currentY = 'touches' in mv ? mv.touches[0].clientY : mv.clientY;
       const dx = ((currentX - startX) / rect.width) * 100;
       const dy = ((currentY - startY) / rect.height) * 100;
-      setPlacedItems(prev => prev.map(i => i.id === id ? { ...i, x: Math.max(0, Math.min(100, initialX + dx)), y: Math.max(0, Math.min(100, initialY + dy)) } : i));
+
+      const newX = Math.max(0, Math.min(100, initialX + dx));
+      const newY = Math.max(0, Math.min(100, initialY + dy));
+
+      if (el) {
+        if (rafId) cancelAnimationFrame(rafId);
+        rafId = requestAnimationFrame(() => {
+          el.style.left = `${newX}%`;
+          el.style.top = `${newY}%`;
+        });
+      }
     };
 
-    const onEnd = () => {
+    const onEnd = (endEvent: MouseEvent | TouchEvent) => {
       window.removeEventListener('mousemove', onMove as any);
       window.removeEventListener('mouseup', onEnd);
       window.removeEventListener('touchmove', onMove as any);
       window.removeEventListener('touchend', onEnd);
+      if (rafId) cancelAnimationFrame(rafId);
+
+      // Calculate final position to update React State
+      let finalX = initialX;
+      let finalY = initialY;
+
+      // We need to recalculate based on the LAST event or trust the DOM style?
+      // Trusting DOM style is tricky if we want exact math. best is to recalc using the last known position.
+      // But 'endEvent' might not have coordinates (e.g. mouseup).
+      // Easier: just read the style.left/top we set!
+      if (el) {
+        finalX = parseFloat(el.style.left || String(initialX));
+        finalY = parseFloat(el.style.top || String(initialY));
+      }
+
+      setPlacedItems(prev => prev.map(i => i.id === id ? { ...i, x: finalX, y: finalY } : i));
     };
 
     window.addEventListener('mousemove', onMove as any);
@@ -101,6 +136,7 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({
     e.stopPropagation();
     const item = placedItems.find(i => i.id === id);
     if (!item || !canvasRef.current) return;
+    const el = itemRefs.current.get(id);
 
     const rect = canvasRef.current.getBoundingClientRect();
     const centerX = rect.left + (item.x / 100) * rect.width;
@@ -112,13 +148,24 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({
 
     const startDist = Math.hypot(currentX - centerX, currentY - centerY);
     const initialScale = item.scale;
+    let rafId: number;
+    let finalScale = initialScale;
 
     const onMove = (mv: MouseEvent | TouchEvent) => {
+      if ('touches' in mv) mv.preventDefault();
       const mvX = 'touches' in mv ? mv.touches[0].clientX : mv.clientX;
       const mvY = 'touches' in mv ? mv.touches[0].clientY : mv.clientY;
       const currentDist = Math.hypot(mvX - centerX, mvY - centerY);
-      const newScale = (currentDist / startDist) * initialScale;
-      setPlacedItems(prev => prev.map(i => i.id === id ? { ...i, scale: Math.max(0.05, newScale) } : i));
+
+      const newScale = Math.max(0.05, (currentDist / startDist) * initialScale);
+      finalScale = newScale;
+
+      if (el) {
+        if (rafId) cancelAnimationFrame(rafId);
+        rafId = requestAnimationFrame(() => {
+          el.style.transform = `translate(-50%, -50%) rotate(${item.rotation}deg) scale(${newScale})`;
+        });
+      }
     };
 
     const onEnd = () => {
@@ -126,6 +173,9 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({
       window.removeEventListener('mouseup', onEnd);
       window.removeEventListener('touchmove', onMove as any);
       window.removeEventListener('touchend', onEnd);
+      if (rafId) cancelAnimationFrame(rafId);
+
+      setPlacedItems(prev => prev.map(i => i.id === id ? { ...i, scale: finalScale } : i));
     };
 
     window.addEventListener('mousemove', onMove as any);
@@ -230,6 +280,10 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({
           return (
             <div
               key={item.id}
+              ref={(el) => {
+                if (el) itemRefs.current.set(item.id, el);
+                else itemRefs.current.delete(item.id);
+              }}
               style={{
                 left: `${item.x}%`,
                 top: `${item.y}%`,
@@ -237,6 +291,7 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({
                 width: baseW,
                 height: baseH,
                 zIndex: isSelected ? 200 : 20,
+                touchAction: 'none',
               }}
               className={`absolute flex items-center justify-center cursor-move transition-shadow duration-300 ${isSelected ? 'shadow-[0_0_30px_rgba(255,255,255,0.1)]' : ''}`}
               onMouseDown={(e) => handleInteractionStart(item.id, e)}
@@ -322,23 +377,79 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({
                     <button
                       onMouseDown={(e) => {
                         e.stopPropagation();
+                        const el = itemRefs.current.get(item.id);
                         const rect = canvasRef.current!.getBoundingClientRect();
                         const cx = rect.left + (item.x / 100) * rect.width;
                         const cy = rect.top + (item.y / 100) * rect.height;
+                        let rafId: number;
+                        let finalRotation = item.rotation;
+
                         const onMove = (mv: MouseEvent | TouchEvent) => {
+                          if ('touches' in mv) mv.preventDefault();
                           const mvX = 'touches' in mv ? mv.touches[0].clientX : mv.clientX;
                           const mvY = 'touches' in mv ? mv.touches[0].clientY : mv.clientY;
                           const angle = Math.atan2(mvY - cy, mvX - cx);
-                          setPlacedItems(prev => prev.map(i => i.id === item.id ? { ...i, rotation: (angle * 180 / Math.PI) + 90 } : i));
+                          finalRotation = (angle * 180 / Math.PI) + 90;
+
+                          if (el) {
+                            if (rafId) cancelAnimationFrame(rafId);
+                            rafId = requestAnimationFrame(() => {
+                              el.style.transform = `translate(-50%, -50%) rotate(${finalRotation}deg) scale(${item.scale})`;
+                            });
+                          }
                         };
                         const onEnd = () => {
                           window.removeEventListener('mousemove', onMove as any);
                           window.removeEventListener('mouseup', onEnd);
                           window.removeEventListener('touchmove', onMove as any);
                           window.removeEventListener('touchend', onEnd);
+                          if (rafId) cancelAnimationFrame(rafId);
+                          setPlacedItems(prev => prev.map(i => i.id === item.id ? { ...i, rotation: finalRotation } : i));
                         };
                         window.addEventListener('mousemove', onMove as any);
                         window.addEventListener('mouseup', onEnd);
+                        window.addEventListener('touchmove', onMove as any, { passive: false });
+                        window.addEventListener('touchend', onEnd);
+                      }}
+                      onTouchStart={(e) => {
+                        e.stopPropagation();
+                        // Logic duplicated here for touchStart binding if React doesn't map overlapping handlers well, 
+                        // but actually the handler above handles both event types in listeners. 
+                        // However, we need to trigger the INIT logic.
+                        // Actually, let's just make a shared handler function to keep it DRY or copy-paste carefully.
+                        // For simplicity in this diff, I will just call the handler.
+                        // Wait, the onMouseDown above is defining functions closing over local vars.
+                        // I will duplicate logic for touchStart to be safe and explicit, or better:
+                        // Create a unified internal handler and call it.
+                        const el = itemRefs.current.get(item.id);
+                        const rect = canvasRef.current!.getBoundingClientRect();
+                        const cx = rect.left + (item.x / 100) * rect.width;
+                        const cy = rect.top + (item.y / 100) * rect.height;
+                        let rafId: number;
+                        let finalRotation = item.rotation;
+
+                        const onMove = (mv: MouseEvent | TouchEvent) => {
+                          if ('touches' in mv) mv.preventDefault();
+                          const mvX = 'touches' in mv ? mv.touches[0].clientX : mv.clientX;
+                          const mvY = 'touches' in mv ? mv.touches[0].clientY : mv.clientY;
+                          const angle = Math.atan2(mvY - cy, mvX - cx);
+                          finalRotation = (angle * 180 / Math.PI) + 90;
+
+                          if (el) {
+                            if (rafId) cancelAnimationFrame(rafId);
+                            rafId = requestAnimationFrame(() => {
+                              el.style.transform = `translate(-50%, -50%) rotate(${finalRotation}deg) scale(${item.scale})`;
+                            });
+                          }
+                        };
+                        const onEnd = () => {
+                          window.removeEventListener('mousemove', onMove as any);
+                          window.removeEventListener('mouseup', onEnd);
+                          window.removeEventListener('touchmove', onMove as any);
+                          window.removeEventListener('touchend', onEnd);
+                          if (rafId) cancelAnimationFrame(rafId);
+                          setPlacedItems(prev => prev.map(i => i.id === item.id ? { ...i, rotation: finalRotation } : i));
+                        };
                         window.addEventListener('touchmove', onMove as any, { passive: false });
                         window.addEventListener('touchend', onEnd);
                       }}
