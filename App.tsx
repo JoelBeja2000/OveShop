@@ -43,6 +43,8 @@ const App: React.FC = () => {
   const [apiKeyModalOpen, setApiKeyModalOpen] = useState(false);
   const [isWebcamOpen, setIsWebcamOpen] = useState(false);
   const [userApiKey, setUserApiKey] = useState<string | null>(localStorage.getItem('gemini_api_key'));
+  const [relationGroups, setRelationGroups] = useState<Record<string, { prompt: string, color: string }>>({});
+  const [isLinkingId, setIsLinkingId] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -247,7 +249,7 @@ const App: React.FC = () => {
       const apiRatio = getSupportedAspectRatio(imageRatio);
 
       const aiAdapter = new GeminiAIAdapter(userApiKey || process.env.API_KEY || '');
-      const result = await aiAdapter.generateRender(backgroundImage, collageData, placedItems, apiRatio);
+      const result = await aiAdapter.generateRender(backgroundImage, collageData, placedItems, apiRatio, relationGroups);
 
       if (result.image) {
         setRenderedImage(result.image);
@@ -367,49 +369,275 @@ const App: React.FC = () => {
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto scrollbar-hide space-y-3 mb-4">
-              {placedItems.map(item => (
-                <div key={item.id} onClick={() => { setSelectedId(item.id); if (window.innerWidth < 768) setActiveMobileTab('scene'); }} className={`group flex flex-col gap-2 p-2 rounded-xl border transition-all cursor-pointer ${selectedId === item.id ? 'bg-alpine-sap border-alpine-sap/20' : 'bg-white/[0.03] border-white/5 hover:bg-white/[0.08]'}`}>
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-black/40 p-1 shrink-0">
-                      <img src={item.image} className="w-full h-full object-contain" alt="" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className={`text-[7px] font-black uppercase tracking-wider truncate ${selectedId === item.id ? 'text-black' : 'text-white/80'}`}>{item.name}</p>
-                      <span className={`text-[7px] font-bold ${selectedId === item.id ? 'text-black/60' : 'text-alpine-sap'}`}>${calculateItemPrice(item).toFixed(1)}</span>
-                    </div>
-                  </div>
+            <div className="flex-1 overflow-y-auto scrollbar-hide space-y-4 mb-4">
+              {(() => {
+                const groupedElements: (PlacedItem | { groupId: string; items: PlacedItem[] })[] = [];
+                const groupMap: Record<string, { groupId: string; items: PlacedItem[] }> = {};
 
-                  {selectedId === item.id && (
-                    <div className="mt-1 flex flex-col gap-2" onClick={e => e.stopPropagation()}>
-                      <textarea
-                        placeholder="Instrucciones IA (ej: 'Tapa el monitor', 'Más brillo')..."
-                        value={item.customPrompt || ''}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setPlacedItems(prev => prev.map(pi => pi.id === item.id ? { ...pi, customPrompt: val } : pi));
+                placedItems.forEach(item => {
+                  if (!item.groupId) {
+                    groupedElements.push(item);
+                  } else {
+                    if (!groupMap[item.groupId]) {
+                      groupMap[item.groupId] = { groupId: item.groupId, items: [] };
+                      groupedElements.push(groupMap[item.groupId]);
+                    }
+                    groupMap[item.groupId].items.push(item);
+                  }
+                });
+
+                return groupedElements.map((element, idx) => {
+                  // CASE A: STANDALONE ITEM
+                  if (!('items' in element)) {
+                    const item = element;
+                    const isSelected = selectedId === item.id;
+                    const isLinkingIdActive = !!isLinkingId;
+                    const isTarget = isLinkingId && isLinkingId !== item.id;
+
+                    const cardClass = isSelected
+                      ? 'bg-alpine-sap border-alpine-sap/20'
+                      : 'bg-white/[0.03] border-white/5 hover:bg-white/[0.08]';
+
+                    const linkingHighlight = isLinkingId === item.id ? 'ring-2 ring-alpine-lavender shadow-[0_0_20px_rgba(162,145,173,0.4)]' : '';
+                    const targetPulse = isTarget ? 'animate-pulse border-alpine-lavender/50' : '';
+
+                    return (
+                      <div
+                        key={item.id}
+                        onClick={() => {
+                          if (isLinkingId) {
+                            if (isLinkingId !== item.id) {
+                              const fromItem = placedItems.find(i => i.id === isLinkingId);
+                              const targetItem = item;
+
+                              let newGroupId = fromItem?.groupId || targetItem.groupId || Math.random().toString(36).substr(2, 9);
+
+                              // If both already have DIFFERENT groups, we MERGE the target's group into fromItem's group
+                              const sourceGroupId = fromItem?.groupId;
+                              const targetGroupId = targetItem.groupId;
+
+                              if (sourceGroupId && targetGroupId && sourceGroupId !== targetGroupId) {
+                                // Merge logic: move all items from targetGroupId to sourceGroupId
+                                setPlacedItems(prev => prev.map(pi => pi.groupId === targetGroupId ? { ...pi, groupId: sourceGroupId } : pi));
+                                newGroupId = sourceGroupId;
+                              } else if (targetGroupId) {
+                                newGroupId = targetGroupId;
+                              }
+
+                              if (!relationGroups[newGroupId]) {
+                                setRelationGroups(prev => ({ ...prev, [newGroupId]: { prompt: '', color: '#9c91ad' } }));
+                              }
+
+                              setPlacedItems(prev => prev.map(pi => (pi.id === item.id || pi.id === isLinkingId) ? { ...pi, groupId: newGroupId } : pi));
+                              setIsLinkingId(null);
+                            } else {
+                              setIsLinkingId(null);
+                            }
+                          } else {
+                            setSelectedId(item.id);
+                            if (window.innerWidth < 768) setActiveMobileTab('scene');
+                          }
                         }}
-                        className="w-full h-12 bg-black/10 border border-black/10 rounded-lg p-2 text-[8px] text-black placeholder-black/40 resize-none focus:outline-none focus:border-black/30"
-                      />
+                        className={`group flex flex-col gap-2 p-2 rounded-xl border transition-all cursor-pointer ${cardClass} ${linkingHighlight} ${targetPulse}`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-lg bg-black/40 p-1 shrink-0">
+                            <img src={item.image} className="w-full h-full object-contain" alt="" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className={`text-[7px] font-black uppercase tracking-wider truncate ${isSelected ? 'text-black' : 'text-white/80'}`}>{item.name}</p>
+                            <span className={`text-[7px] font-bold ${isSelected ? 'text-black/60' : 'text-alpine-sap'}`}>${calculateItemPrice(item).toFixed(1)}</span>
+                          </div>
+                        </div>
 
-                      <div className="flex bg-black/10 rounded-lg p-0.5">
-                        <button
-                          onClick={() => setPlacedItems(prev => prev.map(pi => pi.id === item.id ? { ...pi, occlusionMode: 'overlay' } : pi))}
-                          className={`flex-1 py-1 rounded-md text-[7px] font-bold uppercase transition-all ${(!item.occlusionMode || item.occlusionMode === 'overlay') ? 'bg-white shadow-sm text-black' : 'text-black/40 hover:text-black/70'}`}
-                        >
-                          Encima de
-                        </button>
-                        <button
-                          onClick={() => setPlacedItems(prev => prev.map(pi => pi.id === item.id ? { ...pi, occlusionMode: 'destroy' } : pi))}
-                          className={`flex-1 py-1 rounded-md text-[7px] font-bold uppercase transition-all ${(item.occlusionMode === 'destroy') ? 'bg-red-500/10 text-red-600 shadow-sm border border-red-500/20' : 'text-black/40 hover:text-black/70'}`}
-                        >
-                          Destruir
-                        </button>
+                        {isSelected && (
+                          <div className="mt-1 flex flex-col gap-2" onClick={e => e.stopPropagation()}>
+                            <textarea
+                              placeholder="Instrucciones IA (ej: 'Tapa el monitor')..."
+                              value={item.customPrompt || ''}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setPlacedItems(prev => prev.map(pi => pi.id === item.id ? { ...pi, customPrompt: val } : pi));
+                              }}
+                              className="w-full h-12 bg-black/10 border border-black/10 rounded-lg p-2 text-[8px] text-black placeholder-black/40 resize-none focus:outline-none focus:border-black/30"
+                            />
+                            <div className="flex gap-2">
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setIsLinkingId(item.id); }}
+                                className="flex-1 py-1 bg-white/5 border border-white/10 rounded-md text-[7px] font-bold uppercase text-white hover:bg-white/10"
+                              >
+                                <i className="fa-solid fa-link mr-1"></i> Vincular
+                              </button>
+                              <button
+                                onClick={() => setPlacedItems(prev => prev.map(pi => pi.id === item.id ? { ...pi, occlusionMode: 'overlay' } : pi))}
+                                className={`flex-1 py-1 rounded-md text-[7px] font-bold uppercase transition-all ${(!item.occlusionMode || item.occlusionMode === 'overlay') ? 'bg-white shadow-sm text-black' : 'text-black/40 hover:text-black/70'}`}
+                              >
+                                Encima de
+                              </button>
+                              <button
+                                onClick={() => setPlacedItems(prev => prev.map(pi => pi.id === item.id ? { ...pi, occlusionMode: 'destroy' } : pi))}
+                                className={`flex-1 py-1 rounded-md text-[7px] font-bold uppercase transition-all ${(item.occlusionMode === 'destroy') ? 'bg-red-500/10 text-red-600 shadow-sm border border-red-500/20' : 'text-black/40 hover:text-black/70'}`}
+                              >
+                                Destruir
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }
+
+                  // CASE B: GROUP BLOCK
+                  const group = element;
+                  const groupData = relationGroups[group.groupId] || { prompt: '', color: '#9c91ad' };
+                  const color = groupData.color;
+                  const isAnyItemSelected = group.items.some(it => it.id === selectedId);
+
+                  return (
+                    <div
+                      key={group.groupId}
+                      className="flex flex-col rounded-2xl border transition-all overflow-hidden"
+                      style={{
+                        borderColor: 'rgba(255,255,255,0.1)',
+                        backgroundColor: color,
+                        boxShadow: isAnyItemSelected ? `0 10px 30px -10px ${color}80` : 'none'
+                      }}
+                    >
+                      {/* Group Header */}
+                      <div className="p-2 border-b transition-all border-white/10" style={{ color: 'white' }}>
+                        <div className="flex justify-between items-center mb-2">
+                          <div className="flex items-center gap-2">
+                            <i className="fa-solid fa-link text-[8px] text-white"></i>
+                            <span className="text-[6px] font-black uppercase tracking-widest text-white">Relación de Grupo</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-1.5 bg-black/20 px-1.5 py-0.5 rounded-full border border-white/10">
+                              <span className="text-[5px] font-bold text-white/60 uppercase">COLOR</span>
+                              <input
+                                type="color"
+                                value={color}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setRelationGroups(prev => ({ ...prev, [group.groupId]: { ...groupData, color: val } }));
+                                }}
+                                className="w-3 h-3 rounded-full overflow-hidden border border-white/20 p-0 cursor-pointer bg-transparent appearance-none"
+                              />
+                            </div>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setPlacedItems(prev => prev.map(pi => pi.groupId === group.groupId ? { ...pi, groupId: undefined } : pi));
+                              }}
+                              className="text-[5px] text-white hover:text-white/80 uppercase font-bold px-2 py-1 bg-black/20 rounded-md transition-colors border border-white/10"
+                            >
+                              Desvincular Todo
+                            </button>
+                          </div>
+                        </div>
+                        <textarea
+                          placeholder="¿Cómo interactúan? (ej: 'La enredadera 1 llega hasta la 2')..."
+                          value={groupData.prompt}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setRelationGroups(prev => ({ ...prev, [group.groupId]: { ...groupData, prompt: val } }));
+                          }}
+                          className="w-full h-10 bg-black/20 border border-white/10 rounded-lg p-2 text-[7px] text-white placeholder-white/50 resize-none focus:outline-none"
+                        />
+                      </div>
+
+                      {/* Group Items */}
+                      <div className="p-1 space-y-1">
+                        {group.items.map(item => {
+                          const isSelected = selectedId === item.id;
+                          const isTarget = isLinkingId && isLinkingId !== item.id;
+                          const cardStyle = isSelected ? { backgroundColor: color, color: 'white' } : {};
+
+                          return (
+                            <div
+                              key={item.id}
+                              onClick={() => {
+                                if (isLinkingId) {
+                                  if (isLinkingId !== item.id) {
+                                    const fromItem = placedItems.find(i => i.id === isLinkingId);
+                                    const sourceGroupId = fromItem?.groupId;
+                                    const targetGroupId = group.groupId;
+
+                                    if (sourceGroupId && sourceGroupId !== targetGroupId) {
+                                      // Merge two different groups
+                                      setPlacedItems(prev => prev.map(pi => pi.groupId === targetGroupId ? { ...pi, groupId: sourceGroupId } : pi));
+                                    } else {
+                                      // Standalone joins group OR already same group
+                                      setPlacedItems(prev => prev.map(pi => (pi.id === isLinkingId) ? { ...pi, groupId: targetGroupId } : pi));
+                                    }
+                                    setIsLinkingId(null);
+                                  } else {
+                                    setIsLinkingId(null);
+                                  }
+                                } else {
+                                  setSelectedId(item.id);
+                                }
+                              }}
+                              className={`flex flex-col gap-1.5 p-1.5 rounded-lg border transition-all cursor-pointer ${isSelected ? 'border-white/20 bg-white/10' : 'border-transparent hover:bg-white/5'} ${isTarget ? 'animate-pulse ring-1 ring-white' : ''}`}
+                              style={{
+                                color: 'white'
+                              }}
+                            >
+                              <div className="flex items-center gap-2">
+                                <div className="w-6 h-6 rounded bg-black/20 p-0.5 shrink-0">
+                                  <img src={item.image} className="w-full h-full object-contain" alt="" />
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <p className={`text-[6px] font-black uppercase truncate ${isSelected ? 'text-white' : 'text-white/60'}`}>{item.name}</p>
+                                  <span className={`text-[6px] font-bold ${isSelected ? 'text-white/70' : ''}`} style={!isSelected ? { color } : {}}>${calculateItemPrice(item).toFixed(1)}</span>
+                                </div>
+                                {isSelected && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setPlacedItems(prev => prev.map(pi => pi.id === item.id ? { ...pi, groupId: undefined } : pi));
+                                    }}
+                                    className="w-4 h-4 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white"
+                                  >
+                                    <i className="fa-solid fa-unlink text-[6px]"></i>
+                                  </button>
+                                )}
+                              </div>
+
+                              {isSelected && (
+                                <div className="flex flex-col gap-1.5" onClick={e => e.stopPropagation()}>
+                                  <textarea
+                                    placeholder="Instrucciones específicas..."
+                                    value={item.customPrompt || ''}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      setPlacedItems(prev => prev.map(pi => pi.id === item.id ? { ...pi, customPrompt: val } : pi));
+                                    }}
+                                    className="w-full h-10 bg-black/20 border border-white/10 rounded-lg p-1.5 text-[7px] text-white placeholder-white/30 resize-none focus:outline-none"
+                                  />
+                                  <div className="flex gap-1">
+                                    <button
+                                      onClick={() => setPlacedItems(prev => prev.map(pi => pi.id === item.id ? { ...pi, occlusionMode: 'overlay' } : pi))}
+                                      className={`flex-1 py-1 rounded-md text-[6px] font-bold uppercase transition-all ${(!item.occlusionMode || item.occlusionMode === 'overlay') ? 'bg-white text-black' : 'text-white/40 hover:text-white/70'}`}
+                                    >
+                                      Encima
+                                    </button>
+                                    <button
+                                      onClick={() => setPlacedItems(prev => prev.map(pi => pi.id === item.id ? { ...pi, occlusionMode: 'destroy' } : pi))}
+                                      className={`flex-1 py-1 rounded-md text-[6px] font-bold uppercase transition-all ${(item.occlusionMode === 'destroy') ? 'bg-red-500 text-white' : 'text-white/40 hover:text-white/70'}`}
+                                    >
+                                      Destruir
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
-                  )}
-                </div>
-              ))}
+                  );
+                });
+              })()}
             </div>
 
             <div className="mt-auto border-t border-white/10 pt-4 pb-20 md:pb-4">

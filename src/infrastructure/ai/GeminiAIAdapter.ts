@@ -20,7 +20,8 @@ export class GeminiAIAdapter {
         backgroundImage: string,
         collageImage: string,
         placedItems: PlacedItem[],
-        aspectRatio: "1:1" | "4:3" | "3:4" | "9:16" | "16:9"
+        aspectRatio: "1:1" | "4:3" | "3:4" | "9:16" | "16:9",
+        relationGroups: Record<string, { prompt: string, color: string }> = {}
     ): Promise<AIResponse> {
 
         // 1. Prepare Prompts
@@ -34,14 +35,20 @@ export class GeminiAIAdapter {
             .map((i, idx) => getCreativeItemPrompt(i, idx))
             .join('\n');
 
-        const prompt = buildMainPrompt(strictItems, creativeItems);
+        // Extract groups that actually have members
+        const activeGroups = Object.entries(relationGroups).filter(([groupId]) =>
+            placedItems.some(item => item.groupId === groupId)
+        ).map(([groupId, data]) => {
+            const members = placedItems
+                .filter(item => item.groupId === groupId)
+                .map(item => `"${item.name}"`);
+            return { members, prompt: data.prompt };
+        });
+
+        const prompt = buildMainPrompt(strictItems, creativeItems, activeGroups);
 
         // 2. Prepare Images
-        // CRITICAL STEP: Pre-process the background to BLACK OUT "destroy" items.
-        // This physically removes the light/monitor pixels so the AI cannot see them.
-        const originalDataRaw = backgroundImage.split(',')[1] || backgroundImage;
         const processedBaseData = await ImageProcessor.blackoutOccludedAreas(backgroundImage, placedItems);
-
         const collageData = collageImage.includes(',') ? collageImage.split(',')[1] : collageImage;
 
         const parts: any[] = [
@@ -52,8 +59,7 @@ export class GeminiAIAdapter {
             { inlineData: { mimeType: 'image/jpeg', data: collageData } }
         ];
 
-        // 3. Fetch and Append Reference Images for ALL items (so AI knows what they are)
-        // We give them an index ID to reference in the prompt
+        // 3. Fetch and Append Reference Images
         for (const [index, item] of placedItems.entries()) {
             try {
                 const base64Data = await this.fetchImageAsBase64(item.image);
@@ -66,7 +72,7 @@ export class GeminiAIAdapter {
 
         try {
             const response = await this.genAI.models.generateContent({
-                model: 'gemini-3-pro-image-preview', // Use latest model for best instruction following
+                model: 'gemini-3-pro-image-preview',
                 contents: [{ parts }],
                 config: {
                     temperature: 0.85,

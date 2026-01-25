@@ -43,59 +43,64 @@ export const getCreativeItemPrompt = (item: PlacedItem, index: number): string =
          ${item.customPrompt ? `* **NOTA ADICIONAL DEL USUARIO**: "${item.customPrompt}"` : ''}`;
 };
 
-export const buildMainPrompt = (strictItems: string, creativeItems: string): string => {
+export const buildMainPrompt = (strictItems: string, creativeItems: string, groups: { members: string[], prompt: string }[] = []): string => {
+
+   const relationsSections = groups.length > 0 ? `
+   5. **OBJECT RELATIONSHIPS & INTERACTIONS (SUPERIOR DIRECTIVE):**
+      These instructions OVERRIDE general behavior. Analyze the "INTERACTION LOGIC" carefully.
+      ${groups.map((g, i) => `RELATION #${i + 1}:
+      - MEMBERS: ${g.members.join(', ')}
+      - INTERACTION LOGIC: "${g.prompt}"
+      - BEHAVIORAL RULES:
+        * **POSE & ACTION**: Adjust members' poses, expressions, or positions to match the logic (e.g. if pointing, modify limbs).
+        * **PHYSICAL BRIDGES**: ONLY generate a physical "unión puente" (shroud, vines, beams, flow) IF the logic explicitly implies joining or releasing material. 
+        * **MATERIAL UNITY**: If a bridge is required, it must use the members' own textures. 
+        * **DO NOT** create glowing beams or foreign connections if the members are people interacting socially (pointing, looking, etc.).`).join('\n\n')}
+    ` : '';
+
    return `ACT AS AN EXPERT INTERIOR DESIGN CGI ARTIST. 
     YOUR TASK: RENDER NEW OBJECTS ONTO AN EMPTY ROOM.
     
     INPUTS:
-    1. "Original Photo" (Base Image) -> This image may contain solid BLACK HOLES. These represent DELETED regions that must be REFILLED to match the surrounding context. If there is NO black hole, the image must be preserved.
-    2. "Placement Blueprint" (Overlay Layer) -> This is a TRANSPARENT IMAGE containing ONLY the objects to be placed. No background. It accurately shows the objects' warped geometry and position.
-    3. "Reference Images" -> Visual identity of the new items.
+    1. "Original Photo" (Base Image) -> Background.
+    2. "Placement Blueprint" -> Spatial guide (X/Y, Scale, Perspective).
+    3. "Reference Images" -> Visual identity/source.
 
     WORKFLOW:
     1. Start with "Original Photo".
-    2. Identify the BLACK HOLE regions. IF AND ONLY IF there is a black hole, SEAMLESSLY RECONSTRUCT the background into that hole (matching textures like wall/desk).
-    3. Place the new items from "Placement Blueprint" into the scene.
-    4. Apply lighting, shadows, and relighting to make them 100% photorealistic parts of the room.
+    2. Reconstruct any BLACK HOLES via inpainting.
+    3. Place new items.
+    4. APPLY LIGHTING AND RELATIONSHIP LOGIC.
 
-  INSTRUCTIONS FOR OBJECT PLACEMENT & VISUAL BEHAVIOR:
-  
-  1. **VISUAL FIDELITY RULES (CRITICAL):**
-     A. **ITEMS MARKED "FIJO/AUTOR" (STRICT):**
-        - **CRITICAL**: The texture/image in the blueprint IS the final finish. DO NOT REPLACE IT.
-        - **TASK**: This is an IMAGE COMPOSITING task for these items.
-        - **ALLOWED**: Only add lighting, shadows, and slight color grading.
-     
-     B. **ITEMS MARKED "AUTO/GENERATIVO":**
-        - **TASK**: This is a CONDITIONAL GENERATION task.
-        - **INPUT**: Look at the "Reference Image" to know the subject (e.g. "Stitch Plushie").
-        - **OUTPUT**: GENERATE A COMPLETELY NEW version of that subject in the scene.
-        - **TRANSFORMATION**: 
-          * The Blueprint shows WHERE and how (Perspective/Scale).
-          * The Reference shows WHAT it is.
-          * YOU determine HOW it sits (Perspective, Lighting, Angle). 
-          * Do NOT preserve the artifacts, lighting, or flat angle of the Reference Image. Make it belonging to the room.
+   INSTRUCTIONS FOR OBJECT PLACEMENT & VISUAL BEHAVIOR:
+   
+   1. **HIERARCHY OF TRUTH (CRITICAL):**
+      - LEVEL 1 (TOP): **"OBJECT RELATIONSHIPS" (Section 5)**.
+      - LEVEL 2: **"NOTA ADICIONAL DEL USUARIO"** (Found in item lists).
+      - LEVEL 3: **FIDELITY RULES** (Strict vs Creative).
+      - *Rule Case*: If a user note says "it's releasing lines", you MUST modify the item even if it's "Strict" to show that interaction.
 
-  2. **SPATIAL INTELLIGENCE, OCCLUSION & PRESERVATION:**
-     - **OPAQUE LAYER:** All items being placed are SOLID AND OPAQUE.
-     - **NO LIGHT BLEED:** It is STRICTLY FORBIDDEN to let any light or color from the "Original Photo" bleed THROUGH the placed items.
-     - **REPLACEMENT vs PRESERVATION LOGIC:** 
-       * **CASE A: BLACK HOLE PRESENT**: This is "DESTROY" mode. Delete the previous background content and reconstruct the surface (wall, table, floor).
-       * **CASE B: NO BLACK HOLE**: This is "OVERLAY" mode. Keep the original background objects (e.g., if placing a cup on a phone, the phone stays there). Only the part literally covered by the 100% opaque new object is hidden.
-     - **DEPTH AWARENESS:** If a placed object is positioned "behind" a real object in the photo (e.g., behind a sofa edge, behind a person), YOU MUST MASK IT. Do not paint over foreground elements unless the object is explicitly in front.
+   2. **VISUAL FIDELITY RULES:**
+      A. **ITEMS MARKED "FIJO/AUTOR" (STRICT):**
+         - Preserve texture and core identity.
+         - **EXCEPTION**: You MAY bend, rotate, or slightly modify the edges/pose if a RELATIONSHIP or USER NOTE requires it.
+      
+      B. **ITEMS MARKED "AUTO/GENERATIVO":**
+         - Generate a completely fresh instance.
+         - You have full creative freedom to fulfill interactions and poses.
 
-  3. **LIGHTING & ATMOSPHERE:**
-     - Match the global illumination of the room.
-     - Cast realistic contact shadows.
-     - Generate reflections on the floor/surfaces.
+   3. **SPATIAL INTELLIGENCE & OCCLUSION:**
+      - Preserve the background content (Overlay mode) unless there is a black hole (Destroy mode).
+      - Depth awareness is mandatory.
 
-  4. **FINAL IMAGE INTEGRITY:**
-     - PRESERVE the rest of the room exactly as is.
-     - Return the full image at full resolution.
+   4. **LIGHTING & INTEGRITY:**
+      - 100% photorealistic integration.
+   
+   ${relationsSections}
 
-  LIST OF ITEMS TO INTEGRATE:
-  ${strictItems}
-  ${creativeItems}
+   LIST OF ITEMS TO INTEGRATE:
+   ${strictItems}
+   ${creativeItems}
 
-  EXECUTE WITH PHOTOREALISTIC QUALITY. OUTPUT ONLY THE FINAL IMAGE.`;
+   EXECUTE WITH PHOTOREALISTIC QUALITY. OUTPUT ONLY THE FINAL IMAGE.`;
 };

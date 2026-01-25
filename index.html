@@ -1,65 +1,72 @@
-
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EcoDecor Vision & Budget Pro</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@100..800&display=swap" rel="stylesheet">
-    <script>
-        tailwind.config = {
-          darkMode: 'class',
-          theme: {
-            extend: {
-              fontFamily: {
-                sans: ['"JetBrains Mono"', 'monospace'],
-              },
-              colors: {
-                alpine: {
-                  oak: '#D4B996',
-                  walnut: '#3D2B1F',
-                  cedar: '#8C5E45',
-                  sap: '#A2AD91',
-                  ash: '#F4F1EA',
-                  obsidian: '#121212'
-                }
-              }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EcoDecor Vision & Budget Pro</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@100..800&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"JetBrains Mono"', 'monospace'],
+          },
+          colors: {
+            alpine: {
+              oak: '#D4B996',
+              walnut: '#3D2B1F',
+              cedar: '#8C5E45',
+              sap: '#A2AD91',
+              lavender: '#9c91ad',
+              ash: '#F4F1EA',
+              obsidian: '#121212'
             }
           }
         }
-    </script>
-    <style>
-        body {
-            margin: 0;
-            padding: 0;
-            background-color: #F4F1EA;
-            font-family: 'JetBrains Mono', monospace;
-        }
-        .dark body {
-            background-color: #121212;
-        }
-        .pebble-shape {
-            border-radius: 45% 55% 65% 35% / 40% 50% 60% 40%;
-        }
-        .organic-soft {
-            border-radius: 2rem 4rem 2rem 4rem;
-        }
-        .asymmetric-curve {
-            border-radius: 60% 40% 70% 30% / 30% 70% 40% 60%;
-        }
-        ::-webkit-scrollbar {
-            width: 4px;
-        }
-        ::-webkit-scrollbar-thumb {
-            background: #8C5E45;
-            border-radius: 10px;
-        }
-    </style>
-<script type="importmap">
+      }
+    }
+  </script>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: #F4F1EA;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .dark body {
+      background-color: #121212;
+    }
+
+    .pebble-shape {
+      border-radius: 45% 55% 65% 35% / 40% 50% 60% 40%;
+    }
+
+    .organic-soft {
+      border-radius: 2rem 4rem 2rem 4rem;
+    }
+
+    .asymmetric-curve {
+      border-radius: 60% 40% 70% 30% / 30% 70% 40% 60%;
+    }
+
+    ::-webkit-scrollbar {
+      width: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: #8C5E45;
+      border-radius: 10px;
+    }
+  </style>
+  <script type="importmap">
 {
   "imports": {
     "react/": "https://esm.sh/react@^19.2.3/",
@@ -69,10 +76,12 @@
   }
 }
 </script>
-<link rel="stylesheet" href="/index.css">
+  <link rel="stylesheet" href="/index.css">
 </head>
+
 <body>
-    <div id="root"></div>
-<script type="module" src="/index.tsx"></script>
+  <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
 </body>
+
 </html>

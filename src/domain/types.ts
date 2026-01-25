@@ -54,4 +54,6 @@ export interface PlacedItem {
   visualBehavior: VisualBehavior;
   customPrompt?: string;
   occlusionMode?: 'overlay' | 'destroy';
+  groupId?: string; // ID for grouping related items
+  groupRole?: string; // specific role in the relation (e.g. "Item A", "Item B")
 }
