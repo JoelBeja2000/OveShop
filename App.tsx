@@ -242,7 +242,7 @@ const App: React.FC = () => {
     setIsRendering(true);
     try {
       const canvasAdapter = new CanvasCollageAdapter();
-      const collageData = (await canvasAdapter.generateCollageBlob(backgroundImage, placedItems)).split(',')[1];
+      const collageData = (await canvasAdapter.generateCollageBlob(backgroundImage, placedItems, true)).split(',')[1];
 
       const apiRatio = getSupportedAspectRatio(imageRatio);
 
@@ -369,14 +369,45 @@ const App: React.FC = () => {
 
             <div className="flex-1 overflow-y-auto scrollbar-hide space-y-3 mb-4">
               {placedItems.map(item => (
-                <div key={item.id} onClick={() => { setSelectedId(item.id); if (window.innerWidth < 768) setActiveMobileTab('scene'); }} className={`group flex items-center gap-3 p-2 rounded-xl border transition-all cursor-pointer ${selectedId === item.id ? 'bg-alpine-sap border-alpine-sap/20' : 'bg-white/[0.03] border-white/5 hover:bg-white/[0.08]'}`}>
-                  <div className="w-8 h-8 rounded-lg bg-black/40 p-1 shrink-0">
-                    <img src={item.image} className="w-full h-full object-contain" alt="" />
+                <div key={item.id} onClick={() => { setSelectedId(item.id); if (window.innerWidth < 768) setActiveMobileTab('scene'); }} className={`group flex flex-col gap-2 p-2 rounded-xl border transition-all cursor-pointer ${selectedId === item.id ? 'bg-alpine-sap border-alpine-sap/20' : 'bg-white/[0.03] border-white/5 hover:bg-white/[0.08]'}`}>
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-black/40 p-1 shrink-0">
+                      <img src={item.image} className="w-full h-full object-contain" alt="" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className={`text-[7px] font-black uppercase tracking-wider truncate ${selectedId === item.id ? 'text-black' : 'text-white/80'}`}>{item.name}</p>
+                      <span className={`text-[7px] font-bold ${selectedId === item.id ? 'text-black/60' : 'text-alpine-sap'}`}>${calculateItemPrice(item).toFixed(1)}</span>
+                    </div>
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <p className={`text-[7px] font-black uppercase tracking-wider truncate ${selectedId === item.id ? 'text-black' : 'text-white/80'}`}>{item.name}</p>
-                    <span className={`text-[7px] font-bold ${selectedId === item.id ? 'text-black/60' : 'text-alpine-sap'}`}>${calculateItemPrice(item).toFixed(1)}</span>
-                  </div>
+
+                  {selectedId === item.id && (
+                    <div className="mt-1 flex flex-col gap-2" onClick={e => e.stopPropagation()}>
+                      <textarea
+                        placeholder="Instrucciones IA (ej: 'Tapa el monitor', 'Más brillo')..."
+                        value={item.customPrompt || ''}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setPlacedItems(prev => prev.map(pi => pi.id === item.id ? { ...pi, customPrompt: val } : pi));
+                        }}
+                        className="w-full h-12 bg-black/10 border border-black/10 rounded-lg p-2 text-[8px] text-black placeholder-black/40 resize-none focus:outline-none focus:border-black/30"
+                      />
+
+                      <div className="flex bg-black/10 rounded-lg p-0.5">
+                        <button
+                          onClick={() => setPlacedItems(prev => prev.map(pi => pi.id === item.id ? { ...pi, occlusionMode: 'overlay' } : pi))}
+                          className={`flex-1 py-1 rounded-md text-[7px] font-bold uppercase transition-all ${(!item.occlusionMode || item.occlusionMode === 'overlay') ? 'bg-white shadow-sm text-black' : 'text-black/40 hover:text-black/70'}`}
+                        >
+                          Encima de
+                        </button>
+                        <button
+                          onClick={() => setPlacedItems(prev => prev.map(pi => pi.id === item.id ? { ...pi, occlusionMode: 'destroy' } : pi))}
+                          className={`flex-1 py-1 rounded-md text-[7px] font-bold uppercase transition-all ${(item.occlusionMode === 'destroy') ? 'bg-red-500/10 text-red-600 shadow-sm border border-red-500/20' : 'text-black/40 hover:text-black/70'}`}
+                        >
+                          Destruir
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

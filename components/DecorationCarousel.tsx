@@ -119,9 +119,9 @@ const DecorationCarousel: React.FC<DecorationCarouselProps> = ({ onSelectItem, s
       category: DecorationCategory.PERSONA,
       price: 0,
       pricingType: PricingType.UNIT,
-      visualBehavior: 'generative',
+      visualBehavior: 'strict',
       image: 'https://i.postimg.cc/C5t7LQVF/image-removebg-preview-(3).png',
-      description: 'Persona real. Se adapta al entorno y posición.'
+      description: 'Persona real. Se integra con iluminación realista sin modificar su postura.'
     },
 
     // ELEMENTOS ORGÁNICOS - MODO AUTO (GENERATIVE) - MESA/SUELO

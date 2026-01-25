@@ -52,4 +52,6 @@ export interface PlacedItem {
   saturation?: number;
   brightness?: number;
   visualBehavior: VisualBehavior;
+  customPrompt?: string;
+  occlusionMode?: 'overlay' | 'destroy';
 }

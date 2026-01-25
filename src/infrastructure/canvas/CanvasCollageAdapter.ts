@@ -3,7 +3,7 @@ import { PlacedItem } from "../../domain/types";
 
 export class CanvasCollageAdapter {
 
-    async generateCollageBlob(backgroundImage: string, placedItems: PlacedItem[]): Promise<string> {
+    async generateCollageBlob(backgroundImage: string, placedItems: PlacedItem[], transparentBackground: boolean = false): Promise<string> {
         return new Promise((resolve) => {
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
@@ -14,7 +14,13 @@ export class CanvasCollageAdapter {
             bgImg.onload = async () => {
                 canvas.width = bgImg.width;
                 canvas.height = bgImg.height;
-                ctx.drawImage(bgImg, 0, 0);
+
+                if (!transparentBackground) {
+                    ctx.drawImage(bgImg, 0, 0);
+                } else {
+                    // Start from empty (transparent)
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                }
 
                 const baseProportionalSize = canvas.height * 0.35;
 
