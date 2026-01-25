@@ -1,0 +1,7 @@
+{
+  "name": "EcoDecor Minimalist Pro",
+  "description": "A minimalist interactive decor visualizer with camera and upload capabilities.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
