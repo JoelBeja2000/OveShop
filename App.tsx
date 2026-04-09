@@ -1,10 +1,9 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { PlacedItem, PricingType, VisualBehavior, AssetCategory, AssetItem } from './src/domain/types';
+import { PlacedItem, VisualBehavior, AssetCategory, AssetItem } from './src/domain/types';
 import { GeminiAIAdapter } from './src/infrastructure/ai/GeminiAIAdapter';
 import { CanvasCollageAdapter } from './src/infrastructure/canvas/CanvasCollageAdapter';
 import AssetCarousel from './components/AssetCarousel';
-import { PRICE_CATALOG, getPriceForItem, PRICE_CONFIG } from './src/domain/PriceCatalog';
 import CameraCapture from './components/CameraCapture';
 import WebcamCapture from './components/WebcamCapture';
 import ComparisonSlider from './components/ComparisonSlider';
@@ -46,16 +45,16 @@ const App: React.FC = () => {
   const [showComparison, setShowComparison] = useState(false);
   const [hasApiKey, setHasApiKey] = useState(false);
 
-  const [activeMobileTab, setActiveMobileTab] = useState<'scene' | 'budget' | 'shop'>('scene');
+  const [activeMobileTab, setActiveMobileTab] = useState<'scene' | 'shop'>('scene');
   const [apiKeyModalOpen, setApiKeyModalOpen] = useState(false);
   const [isWebcamOpen, setIsWebcamOpen] = useState(false);
   const [userApiKey, setUserApiKey] = useState<string | null>(localStorage.getItem('gemini_api_key'));
   const [relationGroups, setRelationGroups] = useState<Record<string, { prompt: string, color: string }>>({});
   const [isLinkingId, setIsLinkingId] = useState<string | null>(null);
-  const [finalBudget, setFinalBudget] = useState<number | null>(null);
   const [userAssets, setUserAssets] = useState<ColorVariantItem[]>([]);
   const [sceneResolution, setSceneResolution] = useState<{ w: number, h: number } | null>(null);
   const [canvasZoom, setCanvasZoom] = useState<number>(1.0);
+  const [panOffset, setPanOffset] = useState<{ x: number, y: number }>({ x: 0, y: 0 });
   const projectInputRef = useRef<HTMLInputElement>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -90,7 +89,7 @@ const App: React.FC = () => {
     }
   };
 
-  const handleAddItem = (itemId: string, name: string, image: string, price: number, pricingType: PricingType, x: number, y: number, h: number, s: number, b: number, description: string, visualBehavior: VisualBehavior, category: AssetCategory) => {
+  const handleAddItem = (itemId: string, name: string, image: string, x: number, y: number, h: number, s: number, b: number, description: string, visualBehavior: VisualBehavior, category: AssetCategory) => {
     const img = new Image();
     img.onload = () => {
       const ratio = img.width / img.height;
@@ -101,8 +100,6 @@ const App: React.FC = () => {
         name,
         description,
         image,
-        price,
-        pricingType,
         x,
         y,
         scale: 1,
@@ -143,8 +140,6 @@ const App: React.FC = () => {
           id: assetId,
           name: file.name.split('.')[0],
           category: AssetCategory.INVENTORY,
-          price: 0,
-          pricingType: PricingType.UNIT,
           visualBehavior: 'strict',
           image: dataUrl,
           description: 'Asset cargado localmente'
@@ -158,8 +153,6 @@ const App: React.FC = () => {
             newAsset.id,
             newAsset.name,
             newAsset.image,
-            newAsset.price,
-            newAsset.pricingType,
             dropPos.x,
             dropPos.y,
             0, 1, 1,
@@ -187,61 +180,6 @@ const App: React.FC = () => {
     setApiKeyModalOpen(true);
   };
 
-  // DEPRECATED: Live calculation removed in favor of on-demand "Final Budget"
-  // const calculateItemPrice = (item: PlacedItem) => { ... }
-  // const totalPrice = placedItems.reduce((acc, item) => acc + calculateItemPrice(item), 0);
-
-  const calculateProjectBudget = (analysedAreas?: Record<string, number>) => {
-    let total = 0;
-
-    placedItems.forEach(item => {
-      const rule = getPriceForItem(item.itemId);
-      let itemCost = 0;
-
-      if (rule.type === 'unidad') {
-        itemCost = rule.basePrice;
-      } else if (rule.type === 'm²') {
-        // USE AI ANALYSIS IF AVAILABLE, OTHERWISE ESTIMATE
-        if (analysedAreas && analysedAreas[item.id]) {
-          const aiArea = analysedAreas[item.id];
-          itemCost = Math.max(rule.minPrice || 0, aiArea * rule.basePrice);
-          console.log(`[Budget] Used AI Area for ${item.name}: ${aiArea.toFixed(2)}m² -> $${itemCost}`);
-        } else {
-          // Area estimation fallback
-          // Assume screen height = PRICE_CONFIG.ASSUMED_SCENE_HEIGHT_METERS (e.g. 3m)
-          // item.scale is relative to screen height (~0.35 base size). 
-          // Let's approximate: (scale * baseSize) * (scale * baseSize * aspectRatio)
-          const baseSizeMeters = PRICE_CONFIG.ASSUMED_SCENE_HEIGHT_METERS * 0.35;
-          const h_meters = baseSizeMeters * item.scale;
-          const w_meters = h_meters * item.aspectRatio;
-          const area_m2 = h_meters * w_meters;
-
-          itemCost = Math.max(rule.minPrice || 0, area_m2 * rule.basePrice);
-        }
-      } else if (rule.type === 'g') {
-        // Weight estimation
-        // Scale 1.0 = X grams ?
-        // item.scale * PRICE_CONFIG.GRAMS_PER_SCALE_UNIT
-        const estimatedGrams = item.scale * PRICE_CONFIG.GRAMS_PER_SCALE_UNIT; // e.g. 50g
-        const unitsOf100g = estimatedGrams / 100;
-        itemCost = unitsOf100g * rule.basePrice;
-      }
-
-      if (rule.installationFee) {
-        itemCost += rule.installationFee;
-      }
-
-      // Update item with calculated price for the invoice
-      item.price = itemCost;
-      total += itemCost;
-    });
-
-    setFinalBudget(total);
-    // Force update of items to reflect calculated prices (optional, but good for invoice)
-    setPlacedItems([...placedItems]);
-  };
-
-
   const handleDownloadImage = () => {
     if (!renderedImage) return;
     const link = document.createElement('a');
@@ -259,6 +197,8 @@ const App: React.FC = () => {
       placedItems,
       userAssets,
       sceneResolution,
+      canvasZoom,
+      panOffset,
       timestamp: new Date().toISOString()
     };
     
@@ -285,9 +225,10 @@ const App: React.FC = () => {
         if (data.placedItems) setPlacedItems(data.placedItems);
         if (data.userAssets) setUserAssets(data.userAssets);
         if (data.sceneResolution) setSceneResolution(data.sceneResolution);
+        if (data.canvasZoom) setCanvasZoom(data.canvasZoom);
+        if (data.panOffset) setPanOffset(data.panOffset);
         // Reset view states
         setRenderedImage(null);
-        setFinalBudget(null);
         setShowComparison(false);
       } catch (err) {
         alert("❌ Error al cargar el proyecto: Archivo inválido");
@@ -299,92 +240,6 @@ const App: React.FC = () => {
     e.target.value = '';
   };
 
-  const handleDownloadInvoice = () => {
-    const invoiceWindow = window.open('', '_blank');
-    if (!invoiceWindow) return;
-
-    const itemsHtml = placedItems.map(item => `
-      <tr>
-        <td style="padding: 12px; border-bottom: 1px solid #eee;">
-          <div style="font-weight: bold; font-size: 14px;">${item.name}</div>
-          <div style="font-size: 11px; color: #666; text-transform: uppercase; letter-spacing: 0.05em;">${item.description}</div>
-        </td>
-        <td style="padding: 12px; border-bottom: 1px solid #eee; text-align: right; text-transform: capitalize;">${item.pricingType}</td>
-        <td style="padding: 12px; border-bottom: 1px solid #eee; text-align: right; font-weight: bold;">$${(item.price || 0).toFixed(2)}</td>
-      </tr>
-    `).join('');
-
-    invoiceWindow.document.write(`
-      <html>
-        <head>
-          <title>Presupuesto OveShop Pro</title>
-          <style>
-            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
-            body { font-family: 'Inter', sans-serif; padding: 40px; color: #333; line-height: 1.6; }
-            .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 40px; border-bottom: 2px solid #000; padding-bottom: 20px; }
-            .logo { font-weight: 900; letter-spacing: 0.3em; font-size: 28px; }
-            .meta { text-align: right; font-size: 12px; color: #666; }
-            .project-image { width: 100%; border-radius: 12px; margin-bottom: 40px; box-shadow: 0 20px 40px rgba(0,0,0,0.1); overflow: hidden; }
-            .project-image img { width: 100%; height: auto; display: block; }
-            .image-caption { font-size: 9px; text-transform: uppercase; letter-spacing: 0.3em; color: #999; text-align: center; margin-top: 15px; }
-            table { width: 100%; border-collapse: collapse; margin-bottom: 40px; }
-            th { text-transform: uppercase; font-size: 10px; letter-spacing: 0.1em; color: #999; border-bottom: 1px solid #000; padding: 12px; }
-            .total-box { background: #f9f9f9; padding: 30px; text-align: right; border-radius: 16px; margin-top: 20px; }
-            .total-label { font-size: 12px; text-transform: uppercase; letter-spacing: 0.2em; color: #999; margin-bottom: 5px; }
-            .total-amount { font-size: 42px; font-weight: 900; color: #000; }
-            @media print { .no-print { display: none; } body { padding: 20px; } }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <div>
-              <div class="logo">OVESHOP</div>
-              <div style="font-size: 10px; margin-top: 5px; letter-spacing: 0.2em; color: #888; font-weight: bold;">AI IMAGE EDITOR & COMPOSITOR</div>
-            </div>
-            <div class="meta">
-              <div>Fecha: ${new Date().toLocaleDateString()}</div>
-              <div>ID Presupuesto: #${Math.random().toString(36).substr(2, 6).toUpperCase()}</div>
-            </div>
-          </div>
-          
-          ${renderedImage ? `
-          <div class="project-image">
-            <img src="${renderedImage}" alt="Proyecto Renderizado" />
-            <div class="image-caption">Visualización Fotorealista del Proyecto Final</div>
-          </div>
-          ` : ''}
-          
-          <table>
-            <thead>
-              <tr>
-                <th style="text-align: left;">Elemento</th>
-                <th style="text-align: right;">Cálculo</th>
-                <th style="text-align: right;">Inversión Estimada</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${itemsHtml}
-            </tbody>
-          </table>
-
-          <div class="total-box">
-            <div class="total-label">Inversión Total del Proyecto</div>
-            <div class="total-amount">$${(finalBudget || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
-          </div>
-
-          <script>
-            window.onload = () => {
-              setTimeout(() => { window.print(); }, 800);
-            };
-          </script>
-        </body>
-      </html>
-    `);
-    invoiceWindow.document.close();
-  };
-
-
-
   const processWithAI = async () => {
     if (!backgroundImage || placedItems.length === 0) return;
     if (!hasApiKey) {
@@ -393,9 +248,6 @@ const App: React.FC = () => {
     }
 
     setIsRendering(true);
-
-    // 1. Calculate Budget at the start of processing
-    calculateProjectBudget();
 
     try {
       const canvasAdapter = new CanvasCollageAdapter();
@@ -409,11 +261,6 @@ const App: React.FC = () => {
       if (result.image) {
         setRenderedImage(result.image);
         setShowComparison(false);
-
-        // 2. Recalculate Budget with AI Data if available
-        if (result.usageAnalysis) {
-          calculateProjectBudget(result.usageAnalysis);
-        }
       }
     } catch (error: any) {
       console.error("AI Error:", error);
@@ -439,9 +286,8 @@ const App: React.FC = () => {
         setApiKeyModalOpen(true);
       } else if (errorMessage.includes("Requested entity was not found") || errorMessage.includes("404")) {
         alert("❌ El modelo de IA seleccionado no está disponible con tu API Key o región. Intentando cambiar de modelo...");
-        // Opcional: Podríamos intentar cambiar el modelo automáticamente aquí si tuviéramos un estado para ello.
       } else {
-        alert(`❌ Error inesperado: ${errorMessage.substring(0, 100)}...`);
+        alert(`❌ Error inesperado: \${errorMessage.substring(0, 100)}...`);
       }
     } finally {
       setIsRendering(false);
@@ -460,7 +306,6 @@ const App: React.FC = () => {
           setSceneResolution({ w: img.width, h: img.height });
           setBackgroundImage(dataUrl);
           setRenderedImage(null);
-          setFinalBudget(null); // Reset budget on new image
           setPlacedItems([]);
           setActiveMobileTab('scene');
         };
@@ -471,17 +316,17 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="h-screen w-screen bg-[#020202] text-white flex flex-col md:flex-row overflow-hidden font-sans relative">
+    <div className="h-screen w-screen bg-[#121212] text-white flex flex-col md:flex-row overflow-hidden font-sans relative">
 
       {/* BARRA LATERAL IZQUIERDA: GESTIÓN */}
       <div className={`
         fixed inset-y-0 left-0 z-[500] w-full md:w-64 transform transition-transform duration-700 ease-[cubic-bezier(0.19,1,0.22,1)] flex
         ${window.innerWidth < 768 ? (activeMobileTab === 'budget' ? 'translate-x-0' : '-translate-x-full') : (isLeftBarOpen ? 'translate-x-0' : 'translate-x-[calc(-100%+24px)]')}
       `}>
-        <aside className="flex-1 bg-black md:bg-black/80 backdrop-blur-3xl border-r border-white/5 flex flex-col shadow-2xl relative overflow-hidden">
+        <aside className="flex-1 bg-[#1a1a1a] md:bg-[#1a1a1a]/80 backdrop-blur-3xl border-r border-white/5 flex flex-col shadow-2xl relative overflow-hidden">
           <div className="p-4 flex flex-col gap-3 items-stretch z-10">
             <button
-              onClick={() => { setPlacedItems([]); setBackgroundImage(null); setSceneResolution(null); setRenderedImage(null); setShowComparison(false); setFinalBudget(null); }}
+              onClick={() => { setPlacedItems([]); setBackgroundImage(null); setSceneResolution(null); setRenderedImage(null); setShowComparison(false); }}
               className="h-10 w-full px-4 rounded-xl border border-white/10 flex items-center justify-center hover:bg-white/10 transition-all shrink-0 group"
             >
               <div className="flex items-center gap-2 w-full">
@@ -535,9 +380,9 @@ const App: React.FC = () => {
                 <i className="fa-solid fa-magnifying-glass-minus text-[10px]"></i>
               </button>
               <button 
-                onClick={() => setCanvasZoom(1.0)}
+                onClick={() => { setCanvasZoom(1.0); setPanOffset({ x: 0, y: 0 }); }}
                 className="h-10 flex-1 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center hover:bg-white/10 transition-all text-[7px] font-black uppercase tracking-widest text-white/40 hover:text-white"
-                title="Reset Zoom"
+                title="Reset View"
               >
                 {Math.round(canvasZoom * 100)}%
               </button>
@@ -568,13 +413,6 @@ const App: React.FC = () => {
                 <span className="text-[5px] font-black uppercase tracking-widest text-white/40 group-hover:text-white mt-0.5">Cargar</span>
                 <input type="file" ref={projectInputRef} className="hidden" accept=".oveshop,.json" onChange={handleImportProject} />
               </button>
-              <button 
-                onClick={handleDownloadInvoice}
-                className="h-10 w-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center hover:bg-white/10 transition-all text-white/40 hover:text-white"
-                title="Exportar Presupuesto"
-              >
-                <i className="fa-solid fa-file-invoice-dollar text-[10px]"></i>
-              </button>
             </div>
           </div>
 
@@ -583,7 +421,7 @@ const App: React.FC = () => {
               <span className="text-[7px] font-black uppercase tracking-[0.4em] text-white/30 block mb-1">PROYECTO</span>
               <div className="flex items-end gap-2">
                 <span className="text-2xl font-black text-alpine-sap tracking-tighter">{placedItems.length}</span>
-                <span className="text-[8px] font-bold text-white/60 uppercase tracking-widest pb-1">OBJETOS</span>
+                <span className="text-[8px] font-bold text-white/60 uppercase tracking-widest pb-1">CAPAS</span>
               </div>
             </div>
 
@@ -664,8 +502,8 @@ const App: React.FC = () => {
                           </div>
                           <div className="min-w-0 flex-1">
                             <p className={`text-[7px] font-black uppercase tracking-wider truncate ${isSelected ? 'text-black' : 'text-white/80'}`}>{item.name}</p>
-                            <span className={`text-[7px] font-bold ${isSelected ? 'text-black/60' : 'text-alpine-sap'}`}>
-                              {finalBudget ? `$${item.price.toFixed(1)}` : '...'}
+                            <span className={`text-[7px] font-bold uppercase tracking-widest ${isSelected ? 'text-black/60' : 'text-alpine-sap'}`}>
+                              Editando
                             </span>
                           </div>
                         </div>
@@ -808,9 +646,6 @@ const App: React.FC = () => {
                                 </div>
                                 <div className="min-w-0 flex-1">
                                   <p className={`text-[6px] font-black uppercase truncate ${isSelected ? 'text-white' : 'text-white/60'}`}>{item.name}</p>
-                                  <span className={`text-[6px] font-bold ${isSelected ? 'text-white/70' : ''}`} style={!isSelected ? { color } : {}}>
-                                    {finalBudget ? `$${item.price.toFixed(1)}` : '...'}
-                                  </span>
                                 </div>
                                 {isSelected && (
                                   <button
@@ -860,30 +695,13 @@ const App: React.FC = () => {
                   );
                 });
               })()}
-            </div>
-
-            <div className="mt-auto border-t border-white/10 pt-4 pb-20 md:pb-4">
-              <span className="text-[7px] font-black uppercase tracking-[0.4em] text-white/30 block mb-1">PRESUPUESTO</span>
-              <div className="text-2xl font-black text-white tracking-tighter leading-none mb-4">
-                {finalBudget !== null ? (
-                  <>
-                    <span className="text-sm mr-1">$</span>{finalBudget.toLocaleString(undefined, { minimumFractionDigits: 1 })}
-                  </>
-                ) : (
-                  <span className="text-sm text-white/40 tracking-widest">PENDIENTE</span>
-                )}
-              </div>
-
-              <button
-                onClick={handleDownloadInvoice}
-                className="w-full h-8 mb-3 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center gap-2 hover:bg-white/10 transition-all group"
-              >
-                <i className="fa-solid fa-receipt text-[10px] text-white/40 group-hover:text-white"></i>
-                <span className="text-[7px] font-bold uppercase tracking-widest text-white/50 group-hover:text-white">Descargar Ticket</span>
-              </button>
 
               {!renderedImage && placedItems.length > 0 && (
-                <button onClick={processWithAI} disabled={isRendering} className="w-full h-12 rounded-xl bg-alpine-sap text-black font-black text-[9px] uppercase tracking-[0.2em] flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-95 transition-all shadow-lg shadow-alpine-sap/10">
+                <button
+                  onClick={processWithAI}
+                  disabled={isRendering}
+                  className="w-full h-12 rounded-xl bg-alpine-sap text-black font-black text-[9px] uppercase tracking-[0.2em] flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-95 transition-all shadow-lg shadow-alpine-sap/10"
+                >
                   <i className={`fa-solid ${isRendering ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'}`}></i>
                   <span>Generar Render</span>
                 </button>
@@ -895,9 +713,25 @@ const App: React.FC = () => {
       </div>
 
       {/* ÁREA PRINCIPAL: LIENZO */}
-      <main className={`flex-1 relative bg-[#050505] flex items-center justify-center overflow-hidden transition-all duration-700 ${activeMobileTab !== 'scene' && window.innerWidth < 768 ? 'opacity-20 pointer-events-none' : 'opacity-100'}`}>
+      <main 
+        className={`flex-1 relative bg-[#141414] flex items-center justify-center overflow-hidden transition-all duration-700 ${activeMobileTab !== 'scene' && window.innerWidth < 768 ? 'opacity-20 pointer-events-none' : 'opacity-100'}`}
+        style={{
+          backgroundImage: 'radial-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px)',
+          backgroundSize: '32px 32px'
+        }}
+      >
         <div className="w-full h-full flex items-center justify-center p-2 md:p-10 pb-24 md:pb-10">
           <div className="w-full h-full flex items-center justify-center relative">
+            {!backgroundImage && (
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-[100] animate-pulse">
+                <h2 className="text-4xl md:text-8xl font-black text-alpine-sap uppercase tracking-[0.2em] text-center drop-shadow-[0_0_40px_rgba(162,173,145,0.3)] flex flex-col gap-0 md:gap-4 leading-[0.9]">
+                  <span>Carga</span>
+                  <span>Un</span>
+                  <span>Fondo</span>
+                </h2>
+              </div>
+            )}
+
             {renderedImage && backgroundImage ? (
               <div className="w-full h-full flex items-center justify-center animate-fade-in relative">
                 {showComparison ? (
@@ -931,6 +765,8 @@ const App: React.FC = () => {
                 onFileUpload={handleUserFileUpload}
                 zoom={canvasZoom}
                 setZoom={setCanvasZoom}
+                panOffset={panOffset}
+                setPanOffset={setPanOffset}
               />
             )}
           </div>
@@ -979,7 +815,7 @@ const App: React.FC = () => {
         ${window.innerWidth < 768 ? (activeMobileTab === 'shop' ? 'translate-x-0' : 'translate-x-full') : (isRightBarOpen ? 'translate-x-0' : 'translate-x-[calc(100%-24px)]')}
       `}>
         <button onClick={() => setIsRightBarOpen(!isRightBarOpen)} className="hidden md:flex h-20 w-5 bg-black/80 backdrop-blur-3xl border border-white/10 border-r-0 rounded-l-2xl self-center items-center justify-center text-white/20 hover:text-white transition-all shadow-2xl z-[510] relative -right-[1px]"><i className={`fa-solid ${isRightBarOpen ? 'fa-chevron-right' : 'fa-chevron-left'} text-[7px]`}></i></button>
-        <aside className="flex-1 bg-black md:bg-[#080808]/95 backdrop-blur-3xl md:border-l border-white/5 p-6 md:p-7 overflow-y-auto scrollbar-hide shadow-2xl relative">
+        <aside className="flex-1 bg-[#121212] md:bg-[#121212]/95 backdrop-blur-3xl md:border-l border-white/5 p-6 md:p-7 overflow-y-auto scrollbar-hide shadow-2xl relative">
           {!renderedImage ? (
             <AssetCarousel 
               onSelectItem={handleAddItem} 
@@ -988,6 +824,7 @@ const App: React.FC = () => {
               userAssets={userAssets}
               setUserAssets={setUserAssets}
               onUserFileUpload={handleUserFileUpload}
+              hasBackground={!!backgroundImage}
             />
           ) : (
             <div className="h-full flex flex-col items-center justify-center gap-6 text-center opacity-20">
@@ -1000,10 +837,6 @@ const App: React.FC = () => {
 
       {/* NAVEGACIÓN INFERIOR (MÓVIL) */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-black/90 backdrop-blur-3xl border-t border-white/5 z-[600] flex items-center justify-around px-4">
-        <button onClick={() => setActiveMobileTab('budget')} className={`flex flex-col items-center gap-1 transition-all ${activeMobileTab === 'budget' ? 'text-alpine-sap' : 'text-white/30'}`}>
-          <i className="fa-solid fa-receipt text-sm"></i>
-          <span className="text-[7px] font-black uppercase tracking-widest">Proyecto</span>
-        </button>
         <button onClick={() => setActiveMobileTab('scene')} className={`flex flex-col items-center gap-1 transition-all ${activeMobileTab === 'scene' ? 'text-alpine-sap' : 'text-white/30'}`}>
           <i className="fa-solid fa-border-all text-sm"></i>
           <span className="text-[7px] font-black uppercase tracking-widest">Lienzo</span>

@@ -1,6 +1,6 @@
 
 import React, { useRef, useState, useEffect } from 'react';
-import { PlacedItem, PerspectivePoints, PricingType, VisualBehavior, AssetCategory } from '../src/domain/types';
+import { PlacedItem, PerspectivePoints, VisualBehavior, AssetCategory } from '../src/domain/types';
 
 interface CameraCaptureProps {
   darkMode: boolean;
@@ -10,10 +10,12 @@ interface CameraCaptureProps {
   setSelectedId: (id: string | null) => void;
   externalBackground?: string | null;
   // Updated onDropItem to include visualBehavior to match handleAddItem signature
-  onDropItem?: (id: string, name: string, image: string, price: number, pricingType: PricingType, x: number, y: number, hue: number, sat: number, bri: number, description: string, visualBehavior: VisualBehavior, category: AssetCategory) => void;
+  onDropItem?: (id: string, name: string, image: string, x: number, y: number, hue: number, sat: number, bri: number, description: string, visualBehavior: VisualBehavior, category: AssetCategory) => void;
   onFileUpload?: (files: FileList | File[], dropPos: { x: number, y: number }) => void;
   zoom: number;
   setZoom: React.Dispatch<React.SetStateAction<number>>;
+  panOffset: { x: number, y: number };
+  setPanOffset: React.Dispatch<React.SetStateAction<{ x: number, y: number }>>;
 }
 
 function getPerspectiveMatrix(w: number, h: number, p: PerspectivePoints) {
@@ -44,7 +46,7 @@ function getPerspectiveMatrix(w: number, h: number, p: PerspectivePoints) {
 }
 
 const CameraCapture: React.FC<CameraCaptureProps> = ({
-  placedItems, setPlacedItems, selectedId, setSelectedId, externalBackground, onDropItem, onFileUpload, zoom, setZoom
+  placedItems, setPlacedItems, selectedId, setSelectedId, externalBackground, onDropItem, onFileUpload, zoom, setZoom, panOffset, setPanOffset
 }) => {
   const canvasRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -58,6 +60,45 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({
       img.src = externalBackground;
     }
   }, [externalBackground]);
+
+  // BACKGROUND PANNING
+  const handleBackgroundPanStart = (e: React.MouseEvent | React.TouchEvent) => {
+    // Only pan if we didn't click an item (already handled by setSelectedId(null) in parent)
+    const isTouch = 'touches' in e;
+    if (!isTouch && (e as React.MouseEvent).button !== 0) return;
+
+    const startX = isTouch ? (e as React.TouchEvent).touches[0].clientX : (e as React.MouseEvent).clientX;
+    const startY = isTouch ? (e as React.TouchEvent).touches[0].clientY : (e as React.MouseEvent).clientY;
+    const initialPan = { ...panOffset };
+
+    const onMove = (mv: MouseEvent | TouchEvent) => {
+      const currentX = 'touches' in mv ? mv.touches[0].clientX : mv.clientX;
+      const currentY = 'touches' in mv ? mv.touches[0].clientY : mv.clientY;
+      
+      const dx = currentX - startX;
+      const dy = currentY - startY;
+
+      const limitX = window.innerWidth * 0.8;
+      const limitY = window.innerHeight * 0.8;
+
+      setPanOffset({
+        x: Math.max(-limitX, Math.min(limitX, initialPan.x + dx)),
+        y: Math.max(-limitY, Math.min(limitY, initialPan.y + dy))
+      });
+    };
+
+    const onEnd = () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onEnd);
+      window.removeEventListener('touchmove', onMove);
+      window.removeEventListener('touchend', onEnd);
+    };
+
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onEnd);
+    window.addEventListener('touchmove', onMove, { passive: false });
+    window.addEventListener('touchend', onEnd);
+  };
 
   // HANDLERS UNIFICADOS (MOUSE + TOUCH)
   const handleInteractionStart = (id: string, e: React.MouseEvent | React.TouchEvent) => {
@@ -285,14 +326,30 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({
   return (
     <div
       className="w-full h-full flex items-center justify-center relative select-none cursor-default overflow-hidden"
-      onMouseDown={() => { setSelectedId(null); setIsWarpMode(false); }}
-      onTouchStart={() => { setSelectedId(null); setIsWarpMode(false); }}
+      onMouseDown={(e) => { 
+        setSelectedId(null); 
+        setIsWarpMode(false);
+        handleBackgroundPanStart(e);
+      }}
+      onTouchStart={(e) => { 
+        setSelectedId(null); 
+        setIsWarpMode(false);
+        handleBackgroundPanStart(e);
+      }}
       onWheel={(e) => {
         if (e.ctrlKey || e.metaKey) {
           e.preventDefault();
           const delta = -e.deltaY;
           const factor = Math.exp(delta / 500);
           setZoom(z => Math.max(0.2, Math.min(5, z * factor)));
+        } else {
+          // PANNING (Scroll with two fingers on trackpad)
+          const limitX = window.innerWidth * 0.8;
+          const limitY = window.innerHeight * 0.8;
+          setPanOffset(prev => ({
+            x: Math.max(-limitX, Math.min(limitX, prev.x - e.deltaX)),
+            y: Math.max(-limitY, Math.min(limitY, prev.y - e.deltaY))
+          }));
         }
       }}
     >
@@ -300,11 +357,11 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({
         ref={canvasRef}
         style={{ 
           aspectRatio: aspectRatio,
-          transform: `scale(${zoom})`,
+          transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoom})`,
           transformOrigin: 'center center',
           transition: 'transform 0.1s cubic-bezier(0.19, 1, 0.22, 1)'
         }}
-        className="relative w-full h-full bg-[#050505] overflow-visible shadow-2xl rounded-2xl md:rounded-[3rem] border border-white/5"
+        className={`relative w-full h-full ${externalBackground ? 'bg-[#1a1a1a] shadow-2xl border border-white/5' : 'bg-transparent'} overflow-visible rounded-2xl md:rounded-[3rem] transition-all duration-700`}
         onDragOver={(e) => e.preventDefault()}
         onDrop={(e) => {
           e.preventDefault();
@@ -327,8 +384,6 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({
                 data.id,
                 data.name,
                 data.image,
-                data.price,
-                data.pricingType,
                 dropX,
                 dropY,
                 data.hueRotate,

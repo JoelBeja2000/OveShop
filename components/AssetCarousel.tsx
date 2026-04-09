@@ -1,14 +1,15 @@
 
 import React, { useState, useRef } from 'react';
-import { AssetCategory, AssetItem, PricingType, VisualBehavior } from '../src/domain/types';
+import { AssetCategory, AssetItem, VisualBehavior } from '../src/domain/types';
 
 interface AssetCarouselProps {
-  onSelectItem: (id: string, name: string, image: string, price: number, pricingType: PricingType, x: number, y: number, hueRotate: number, saturation: number, brightness: number, description: string, visualBehavior: VisualBehavior, category: AssetCategory) => void;
+  onSelectItem: (id: string, name: string, image: string, x: number, y: number, hueRotate: number, saturation: number, brightness: number, description: string, visualBehavior: VisualBehavior, category: AssetCategory) => void;
   selectedId: string | null;
   darkMode: boolean;
   userAssets: ColorVariantItem[];
   setUserAssets: React.Dispatch<React.SetStateAction<ColorVariantItem[]>>;
   onUserFileUpload: (files: FileList | File[]) => void;
+  hasBackground: boolean;
 }
 
 interface ColorVariantItem extends AssetItem {
@@ -17,7 +18,7 @@ interface ColorVariantItem extends AssetItem {
   brightness?: number;
 }
 
-const AssetCarousel: React.FC<AssetCarouselProps> = ({ onSelectItem, selectedId, darkMode, userAssets, setUserAssets, onUserFileUpload }) => {
+const AssetCarousel: React.FC<AssetCarouselProps> = ({ onSelectItem, selectedId, darkMode, userAssets, setUserAssets, onUserFileUpload, hasBackground }) => {
   const [expandedCategory, setExpandedCategory] = useState<AssetCategory | null>(AssetCategory.INVENTORY);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -26,8 +27,6 @@ const AssetCarousel: React.FC<AssetCarouselProps> = ({ onSelectItem, selectedId,
       id: item.id,
       name: item.name,
       image: item.image,
-      price: item.price || 0,
-      pricingType: item.pricingType,
       hueRotate: item.hueRotate || 0,
       saturation: item.saturation || 1,
       brightness: item.brightness || 1,
@@ -47,21 +46,30 @@ const AssetCarousel: React.FC<AssetCarouselProps> = ({ onSelectItem, selectedId,
       </div>
 
       <button
-        onClick={() => fileInputRef.current?.click()}
-        className="mb-6 mx-1 h-12 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all flex items-center justify-center gap-2 group"
+        onClick={() => hasBackground && fileInputRef.current?.click()}
+        disabled={!hasBackground}
+        className={`mb-6 mx-1 h-12 rounded-2xl border transition-all flex items-center justify-center gap-2 group ${
+          hasBackground 
+            ? 'bg-white/5 border-white/10 hover:bg-white/10' 
+            : 'bg-white/[0.02] border-white/[0.05] cursor-not-allowed opacity-50'
+        }`}
       >
-        <i className="fa-solid fa-plus text-[10px] text-alpine-sap group-hover:scale-125 transition-transform"></i>
-        <span className="text-[8px] font-black uppercase tracking-[0.2em] text-white/60 group-hover:text-white">Cargar Asset Local</span>
-        <input 
-          type="file" 
-          ref={fileInputRef} 
-          className="hidden" 
-          accept="image/*" 
-          multiple 
-          onChange={(e) => {
-            if (e.target.files) onUserFileUpload(e.target.files);
-          }} 
-        />
+        <i className={`fa-solid ${hasBackground ? 'fa-plus' : 'fa-lock'} text-[10px] ${hasBackground ? 'text-alpine-sap' : 'text-white/20'} group-hover:scale-125 transition-transform`}></i>
+        <span className="text-[8px] font-black uppercase tracking-[0.2em] text-white/60 group-hover:text-white">
+          {hasBackground ? 'Cargar Asset Local' : 'Carga un fondo primero'}
+        </span>
+        {hasBackground && (
+          <input 
+            type="file" 
+            ref={fileInputRef} 
+            className="hidden" 
+            accept="image/*" 
+            multiple 
+            onChange={(e) => {
+              if (e.target.files) onUserFileUpload(e.target.files);
+            }} 
+          />
+        )}
       </button>
 
       {categories.map((cat) => {
@@ -97,7 +105,7 @@ const AssetCarousel: React.FC<AssetCarouselProps> = ({ onSelectItem, selectedId,
                     key={item.id}
                     draggable="true"
                     onDragStart={(e) => handleDragStart(e, item)}
-                    onClick={() => onSelectItem(item.id, item.name, item.image, item.price || 0, item.pricingType, 50, 50, item.hueRotate || 0, item.saturation || 1, item.brightness || 1, item.description, item.visualBehavior || 'strict', item.category)}
+                    onClick={() => onSelectItem(item.id, item.name, item.image, 50, 50, item.hueRotate || 0, item.saturation || 1, item.brightness || 1, item.description, item.visualBehavior || 'strict', item.category)}
                     className="group relative flex gap-4 p-3 rounded-3xl transition-all duration-300 border bg-white/[0.01] border-white/[0.03] hover:bg-white/[0.08] hover:border-white/10 cursor-pointer"
                   >
                     <div className="w-20 h-20 shrink-0 bg-black/40 rounded-2xl flex items-center justify-center p-2 group-hover:scale-110 transition-transform overflow-hidden shadow-inner">

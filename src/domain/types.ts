@@ -8,20 +8,12 @@ export enum AssetCategory {
   OTHER = 'Otros'
 }
 
-export enum PricingType {
-  UNIT = 'unidad',
-  AREA = 'm²',
-  WEIGHT = 'g'
-}
-
 export type VisualBehavior = 'strict' | 'generative';
 
 export interface AssetItem {
   id: string;
   name: string;
   category: AssetCategory;
-  price?: number;
-  pricingType: PricingType;
   image: string;
   description: string;
   visualBehavior?: VisualBehavior;
@@ -46,8 +38,6 @@ export interface PlacedItem {
   aspectRatio: number;
   rotation: number;
   image: string;
-  price: number;
-  pricingType: PricingType;
   perspective?: PerspectivePoints;
   hueRotate?: number;
   saturation?: number;
