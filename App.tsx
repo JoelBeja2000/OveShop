@@ -143,6 +143,71 @@ const App: React.FC = () => {
     }
   };
 
+
+
+  const moveLayer = (id: string, direction: 'up' | 'down', isBlock: boolean = false) => {
+    saveToHistory(placedItems);
+    setPlacedItems(prev => {
+      if (!isBlock) {
+        // SIMPLE INDIVIDUAL SWAP
+        const index = prev.findIndex(item => item.id === id);
+        if (index === -1) return prev;
+        const newItems = [...prev];
+        if (direction === 'down' && index > 0) {
+          [newItems[index], newItems[index - 1]] = [newItems[index - 1], newItems[index]];
+        } else if (direction === 'up' && index < prev.length - 1) {
+          [newItems[index], newItems[index + 1]] = [newItems[index + 1], newItems[index]];
+        }
+        return newItems;
+      }
+
+      // BLOCK-AWARE SWAP (Original logic)
+      const elements: (PlacedItem | { groupId: string; items: PlacedItem[] })[] = [];
+      const groupMap: Record<string, { groupId: string; items: PlacedItem[] }> = {};
+      
+      prev.forEach(item => {
+        if (!item.groupId) {
+          elements.push(item);
+        } else {
+          if (!groupMap[item.groupId]) {
+            groupMap[item.groupId] = { groupId: item.groupId, items: [] };
+            elements.push(groupMap[item.groupId]);
+          }
+          groupMap[item.groupId].items.push(item);
+        }
+      });
+
+      // 2. Find which element contains our id
+      const elIdx = elements.findIndex(el => {
+        if ('id' in el) return el.id === id;
+        return el.items.some(it => it.id === id);
+      });
+
+      if (elIdx === -1) return prev;
+
+      // 3. Swap elements
+      const newElements = [...elements];
+      if (direction === 'down' && elIdx > 0) {
+        [newElements[elIdx], newElements[elIdx - 1]] = [newElements[elIdx - 1], newElements[elIdx]];
+      } else if (direction === 'up' && elIdx < elements.length - 1) {
+        [newElements[elIdx], newElements[elIdx + 1]] = [newElements[elIdx + 1], newElements[elIdx]];
+      } else {
+        return prev;
+      }
+
+      // 4. Flatten back to placedItems
+      const flattened: PlacedItem[] = [];
+      newElements.forEach(el => {
+        if ('id' in el) {
+          flattened.push(el);
+        } else {
+          flattened.push(...el.items);
+        }
+      });
+      return flattened;
+    });
+  };
+
   const handleAddItem = (itemId: string, name: string, image: string, x: number, y: number, h: number, s: number, b: number, description: string, visualBehavior: VisualBehavior, category: AssetCategory) => {
     // Redundant safety check to prevent rapid-click duplicates
     if (placedItems.some(item => item.itemId === itemId)) return;
@@ -660,7 +725,8 @@ const App: React.FC = () => {
                   }
                 });
 
-                return groupedElements.map((element, idx) => {
+                // REVERSE to match standard layer panel (Top = Last item / On top)
+                return [...groupedElements].reverse().map((element, idx) => {
                   // CASE A: STANDALONE ITEM
                   if (!('items' in element)) {
                     const item = element;
@@ -723,6 +789,22 @@ const App: React.FC = () => {
                             <span className={`text-[7px] font-bold uppercase tracking-widest ${isSelected ? 'text-black/60' : 'text-alpine-sap'}`}>
                               Editando
                             </span>
+                          </div>
+
+                          {/* LAYER CONTROLS */}
+                          <div className="flex flex-col gap-1">
+                            <button
+                              onClick={(e) => { e.stopPropagation(); moveLayer(item.id, 'up'); }}
+                              className={`w-5 h-5 flex items-center justify-center rounded bg-black/10 hover:bg-black/20 ${isSelected ? 'text-black' : 'text-white/40'}`}
+                            >
+                              <i className="fa-solid fa-chevron-up text-[8px]"></i>
+                            </button>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); moveLayer(item.id, 'down'); }}
+                              className={`w-5 h-5 flex items-center justify-center rounded bg-black/10 hover:bg-black/20 ${isSelected ? 'text-black' : 'text-white/40'}`}
+                            >
+                              <i className="fa-solid fa-chevron-down text-[8px]"></i>
+                            </button>
                           </div>
                           
                           {/* COLOR CHIPS TOP-RIGHT */}
@@ -835,6 +917,26 @@ const App: React.FC = () => {
                             </button>
                           </div>
                         </div>
+
+                        {/* GROUP LAYER CONTROLS */}
+                        <div className="flex gap-2 p-2 border-b border-white/5 bg-black/10">
+                          <span className="text-[6px] font-bold text-white/40 uppercase self-center mr-auto">Mover Grupo</span>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); moveLayer(group.items[0].id, 'up', true); }}
+                            className="w-5 h-5 flex items-center justify-center rounded bg-white/5 hover:bg-white/10 text-white/40"
+                            title="Subir Grupo"
+                          >
+                            <i className="fa-solid fa-chevron-up text-[8px]"></i>
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); moveLayer(group.items[0].id, 'down', true); }}
+                            className="w-5 h-5 flex items-center justify-center rounded bg-white/5 hover:bg-white/10 text-white/40"
+                            title="Bajar Grupo"
+                          >
+                            <i className="fa-solid fa-chevron-down text-[8px]"></i>
+                          </button>
+                        </div>
+
                         <textarea
                           placeholder="¿Cómo interactúan? (ej: 'La enredadera 1 llega hasta la 2')..."
                           value={groupData.prompt}
@@ -889,6 +991,24 @@ const App: React.FC = () => {
                                 </div>
                                 <div className="min-w-0 flex-1">
                                   <p className={`text-[6px] font-black uppercase truncate ${isSelected ? 'text-white' : 'text-white/60'}`}>{item.name}</p>
+                                </div>
+
+                                {/* INTERNAL LAYER CONTROLS */}
+                                <div className="flex items-center gap-1 shrink-0">
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); moveLayer(item.id, 'up', false); }}
+                                    className="w-5 h-5 flex items-center justify-center rounded bg-white/5 hover:bg-white/10 text-white/40"
+                                    title="Subir Capa"
+                                  >
+                                    <i className="fa-solid fa-chevron-up text-[7px]"></i>
+                                  </button>
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); moveLayer(item.id, 'down', false); }}
+                                    className="w-5 h-5 flex items-center justify-center rounded bg-white/5 hover:bg-white/10 text-white/40"
+                                    title="Bajar Capa"
+                                  >
+                                    <i className="fa-solid fa-chevron-down text-[7px]"></i>
+                                  </button>
                                 </div>
 
                                 {/* COLOR CHIPS TOP-RIGHT (ADDED FOR GROUPS) */}

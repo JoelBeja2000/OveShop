@@ -557,10 +557,18 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({
 
         {placedItems.map(item => {
           const isSelected = selectedId === item.id;
-          const baseH = 250;
-          const baseW = 250 * item.aspectRatio;
+          
+          // RESPONSIVE SCALING LOGIC: Use percentages relative to container
+          const BASE_SIZE_PCT = 25; // Base height as % of container height
+          const itemH_pct = BASE_SIZE_PCT;
+          const itemW_pct = (BASE_SIZE_PCT * item.aspectRatio) / aspectRatio;
+          
+          // Virtual dimensions for the perspective matrix (fixed internal grid)
+          const virtualW = 1000 * (itemW_pct / 100);
+          const virtualH = 1000 * (itemH_pct / 100);
+          
           const p = item.perspective || { tl: { x: 0, y: 0 }, tr: { x: 0, y: 0 }, bl: { x: 0, y: 0 }, br: { x: 0, y: 0 } };
-          const matrix = getPerspectiveMatrix(baseW, baseH, p);
+          const matrix = getPerspectiveMatrix(virtualW, virtualH, p);
 
           const h = {
             tl: { x: p.tl.x, y: p.tl.y },
@@ -580,9 +588,9 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({
                 left: `${item.x}%`,
                 top: `${item.y}%`,
                 transform: `translate(-50%, -50%) rotate(${item.rotation}deg) scale(${item.scale})`,
-                width: baseW,
-                height: baseH,
-                zIndex: isSelected ? 200 : 20,
+                width: `${itemW_pct}%`,
+                height: `${itemH_pct}%`,
+                zIndex: (isSelected ? 1000 : 10) + placedItems.findIndex(i => i.id === item.id),
                 touchAction: 'none',
               }}
               className={`absolute flex items-center justify-center cursor-move transition-shadow duration-300 ${isSelected ? 'shadow-[0_0_30px_rgba(255,255,255,0.1)]' : ''}`}
