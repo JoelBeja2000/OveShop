@@ -1,74 +1,46 @@
-# 🖼️ OveShop - Editor y Compositor de Imágenes por IA
+# 🖼️ OveShop - Orquestador Creativo de IA con Materialidad Semántica
 
 👉 [Read in English](README.md)
 
-OveShop es una potente herramienta de edición de imágenes que utiliza **IA Multimodal de Google Gemini** para integrar elementos de forma fluida en cualquier foto. Combinando imágenes subidas por el usuario con composición avanzada por IA, OveShop permite manipulaciones de imagen de nivel profesional con simples interacciones de arrastrar y soltar.
+OveShop no es un editor de imágenes convencional; es una herramienta de orquestación diseñada para traducir la intención creativa en resultados realistas mediante un sistema único de prompts jerárquicos y mapeo de materiales.
 
-![App Header Placeholder](https://via.placeholder.com/1200x400?text=OveShop+AI+Image+Editor)
+![App Header Placeholder](https://via.placeholder.com/1200x400?text=OveShop+AI+Creative+Suite)
 
-## ✨ Características Principales
+## 🚀 Puntos Distintivos (Lo que nos hace únicos)
 
-- **🤖 Composición por IA**: Utiliza Gemini 3 Pro para generar renders realistas de elementos integrados en tu imagen base.
-- **📷 Subida de Assets Locales**: Sube cualquier imagen o icono desde tu PC para usar en tus composiciones.
-- **📐 Perspectiva y Oclusión**: Posicionamiento inteligente de elementos que respeta la geometría y profundidad de la escena.
-- **🔄 Comparación Antes/Después**: Slider interactivo para visualizar la transformación de la IA.
-- **🎨 Galería de Assets**: Organiza tus subidas personalizadas en categorías (Fondo, Objeto, Personaje, Efecto).
-- **✍️ Dibujo Manual**: Motor de dibujo vectorial (SVG) integrado para bocetar directamente sobre el lienzo.
+### 1. Jerarquía de Prompts (Multi-Prompt Layers) 🤖
+A diferencia de otras apps que usan un único prompt global, en OveShop:
+- **Prompts Individuales**: Cada imagen o capa tiene su propia descripción. Puedes indicar que una piedra sea "roja" o tenga "musgo" sin afectar al resto de la escena.
+- **Capas Enlazadas**: Puedes vincular capas entre sí. Cada entidad mantiene su prompt individual, mientras que el grupo puede tener un prompt colectivo para definir su relación.
+- **Control Total**: Enlaza tantas capas como quieras y asigna múltiples prompts para lograr una precisión absoluta en el renderizado final.
 
-## 🚀 Tecnologías
+### 2. Tinta Semántica (Dibujo con Propiedades) ✍️
+Dibujar en OveShop no es solo poner píxeles, es asignar propiedades físicas:
+- **Color = Material**: Cada color de trazo puede tener asignado un material o propiedad (ej: metal, luz, profundidad).
+- **Materialidad**: Si dibujas con un color asignado a "grabado", la IA procesará ese trazo como una incisión física sobre la superficie inferior, no como una simple mancha.
 
-- **Frontend**: React 19 + Vite + TypeScript
-- **Mobile**: Capacitor (Android/iOS)
-- **Motor de IA**: Google Generative AI (Gemini)
-- **Estilos**: CSS Moderno con Glassmorphism y diseño responsivo
+### 3. Tipografía Material (Texto aware de Superficie) 🔡
+El texto en OveShop interactúa con el entorno:
+- **Profundidad por Color**: Asigna a cada color de texto una propiedad. Por ejemplo, el color marrón puede indicar "grabado profundo" sobre una piedra, mientras que otro color puede indicar "relieve" o "resplandor".
+- **Interacción Física**: La IA entiende cómo el texto afecta a la luz y sombras de la textura donde está posicionado.
 
-## 🛠️ Arquitectura
+### 4. Deformación Rápida (Guía para la IA) 📐
+- **Blueprint Geométrico**: Deforma y ajusta los elementos rápidamente para que coincidan con la perspectiva de la foto.
+- **Post-procesado**: Esta pre-deformación sirve de guía vital para que la IA procese la imagen final sin alucinaciones geométricas, manteniendo la coherencia visual.
 
-OveShop sigue un patrón de **Arquitectura Limpia** para asegurar escalabilidad:
-
-- **Domain**: Lógica de negocio pura y definiciones de entidades (`AssetItem`, `PlacedItem`).
-- **Infrastructure**: Implementaciones concretas para servicios externos (Adapters de IA, Procesamiento de Imagen).
-- **Application**: Lógica de unión y componentes de React.
-
-Consulta [ARCHITECTURE.md](./ARCHITECTURE.md) para un desglose detallado.
-
-## 🏁 Primeros Pasos
+## 🛠️ Instalación y Uso
 
 ### Prerrequisitos
-
 - Node.js (Última LTS)
-- NPM o Yarn
-- Android Studio / Xcode (para builds móviles)
-- Una **API Key de Google Gemini**
+- Una **API Key de Google Gemini** ([Consíguela aquí](https://aistudio.google.com/app/apikey))
 
-### Instalación
-
-1. Clona el repositorio:
-   ```bash
-   git clone https://github.com/JoelBeja2000/OveShop.git
-   cd OveShop
-   ```
-
-2. Instala las dependencias:
-   ```bash
-   npm install
-   ```
-
-3. Ejecuta en modo desarrollo:
-   ```bash
-   npm run dev
-   ```
-
-## 🔐 Seguridad y Privacidad
-
-OveShop prioriza tu seguridad. **Ninguna API Key o imagen personal se sube a nuestros servidores.**
-- Las API Keys se introducen localmente y se guardan de forma segura en tu dispositivo.
-- El procesamiento de imágenes ocurre directamente entre tu dispositivo y la API de Google Gemini.
+### Inicio Rápido
+1. `npm install`
+2. `npm run dev`
+3. Introduce tu API Key y empieza a crear.
 
 ## 📄 Licencia
-
 Este proyecto está bajo la [Licencia MIT](./LICENSE).
 
 ---
-
 Desarrollado con ❤️ por [Joel Barea](https://github.com/JoelBeja2000)
