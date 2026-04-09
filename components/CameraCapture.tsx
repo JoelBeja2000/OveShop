@@ -22,6 +22,7 @@ interface CameraCaptureProps {
   setDrawingStrokes?: React.Dispatch<React.SetStateAction<DrawingStroke[]>>;
   activeBrush?: { type: BrushType, color: string, width: number };
   onEditDrawing?: (id: string) => void;
+  onSaveToHistory?: () => void;
 }
 
 function getPerspectiveMatrix(w: number, h: number, p: PerspectivePoints) {
@@ -53,7 +54,7 @@ function getPerspectiveMatrix(w: number, h: number, p: PerspectivePoints) {
 
 const CameraCapture: React.FC<CameraCaptureProps> = ({
   placedItems, setPlacedItems, selectedId, setSelectedId, externalBackground, onDropItem, onFileUpload, zoom, setZoom, panOffset, setPanOffset,
-  isDrawingMode = false, drawingStrokes = [], setDrawingStrokes, activeBrush, onEditDrawing
+  isDrawingMode = false, drawingStrokes = [], setDrawingStrokes, activeBrush, onEditDrawing, onSaveToHistory
 }) => {
   const canvasRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -113,6 +114,7 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({
   const handleInteractionStart = (id: string, e: React.MouseEvent | React.TouchEvent) => {
     const isTouch = 'touches' in e;
     if (!isTouch && (e as React.MouseEvent).button !== 0) return;
+    onSaveToHistory?.();
     e.stopPropagation();
 
     // Prevent scrolling on touch devices
@@ -186,6 +188,7 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({
   };
 
   const handleResizeStart = (id: string, e: React.MouseEvent | React.TouchEvent) => {
+    onSaveToHistory?.();
     e.stopPropagation();
     const item = placedItems.find(i => i.id === id);
     if (!item || !canvasRef.current) return;
@@ -238,6 +241,7 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({
   };
 
   const handleWarpPointStart = (id: string, corner: keyof PerspectivePoints, e: React.MouseEvent | React.TouchEvent) => {
+    onSaveToHistory?.();
     e.stopPropagation();
     const item = placedItems.find(i => i.id === id);
     if (!item) return;
@@ -283,6 +287,7 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({
   };
 
   const handleRotationStart = (id: string, e: React.MouseEvent | React.TouchEvent) => {
+    onSaveToHistory?.();
     e.stopPropagation();
     const item = placedItems.find(i => i.id === id);
     if (!item || !canvasRef.current) return;
@@ -584,12 +589,12 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({
               onMouseDown={(e) => handleInteractionStart(item.id, e)}
               onTouchStart={(e) => handleInteractionStart(item.id, e)}
             >
-              {isSelected && isWarpMode && (
+              {isSelected && (
                 <svg className="absolute inset-0 w-full h-full overflow-visible pointer-events-none z-[10]">
                   <path
                     d={`M ${h.tl.x}% ${h.tl.y}% L ${h.tr.x}% ${h.tr.y}% L ${h.br.x}% ${h.br.y}% L ${h.bl.x}% ${h.bl.y}% Z`}
-                    fill="rgba(162,173,145,0.1)"
-                    stroke="#A2AD91"
+                    fill={isWarpMode ? "rgba(162,173,145,0.1)" : "transparent"}
+                    stroke={isWarpMode ? "#A2AD91" : "rgba(255,255,255,0.4)"}
                     strokeWidth="2"
                     strokeDasharray="4 4"
                   />
@@ -628,8 +633,12 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({
                       <div
                         onMouseDown={(e) => handleRotationStart(item.id, e)}
                         onTouchStart={(e) => handleRotationStart(item.id, e)}
-                        className="absolute -top-16 left-1/2 -translate-x-1/2 w-10 h-16 flex flex-col items-center justify-end z-[300] cursor-grab group origin-bottom"
-                        style={{ transform: `translateX(-50%) scale(${1 / (item.scale * zoom)})` }}
+                        className="absolute w-10 h-16 flex flex-col items-center justify-end z-[300] cursor-grab group origin-bottom"
+                        style={{ 
+                          left: `${(h.tl.x + h.tr.x) / 2}%`,
+                          top: `${(h.tl.y + h.tr.y) / 2}%`,
+                          transform: `translate(-50%, -100%) scale(${1 / (item.scale * zoom)})` 
+                        }}
                       >
                         <div className="w-0.5 h-8 bg-white/80 shadow-sm"></div>
                         <div className="w-5 h-5 bg-white rounded-full shadow-md flex items-center justify-center transform group-active:scale-110 transition-transform">
@@ -637,17 +646,17 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({
                         </div>
                       </div>
 
-                      {/* TIRADORES DE ESCALA MEJORADOS PARA TOUCH */}
-                      <div onMouseDown={(e) => handleResizeStart(item.id, e)} onTouchStart={(e) => handleResizeStart(item.id, e)} style={{ transform: `scale(${1 / (item.scale * zoom)})` }} className="absolute -top-4 -left-4 w-10 h-10 flex items-center justify-center z-[300] cursor-nwse-resize group">
+                      {/* TIRADORES DE ESCALA MEJORADOS - AHORA INTEGRADOS CON WARP */}
+                      <div onMouseDown={(e) => handleResizeStart(item.id, e)} onTouchStart={(e) => handleResizeStart(item.id, e)} style={{ left: `${h.tl.x}%`, top: `${h.tl.y}%`, transform: `translate(-50%, -50%) scale(${1 / (item.scale * zoom)})` }} className="absolute w-10 h-10 flex items-center justify-center z-[300] cursor-nwse-resize group">
                         <div className="w-5 h-5 bg-white rounded-full border-2 border-black shadow-lg group-active:scale-125 transition-transform"></div>
                       </div>
-                      <div onMouseDown={(e) => handleResizeStart(item.id, e)} onTouchStart={(e) => handleResizeStart(item.id, e)} style={{ transform: `scale(${1 / (item.scale * zoom)})` }} className="absolute -top-4 -right-4 w-10 h-10 flex items-center justify-center z-[300] cursor-nesw-resize group">
+                      <div onMouseDown={(e) => handleResizeStart(item.id, e)} onTouchStart={(e) => handleResizeStart(item.id, e)} style={{ left: `${h.tr.x}%`, top: `${h.tr.y}%`, transform: `translate(-50%, -50%) scale(${1 / (item.scale * zoom)})` }} className="absolute w-10 h-10 flex items-center justify-center z-[300] cursor-nesw-resize group">
                         <div className="w-5 h-5 bg-white rounded-full border-2 border-black shadow-lg group-active:scale-125 transition-transform"></div>
                       </div>
-                      <div onMouseDown={(e) => handleResizeStart(item.id, e)} onTouchStart={(e) => handleResizeStart(item.id, e)} style={{ transform: `scale(${1 / (item.scale * zoom)})` }} className="absolute -bottom-4 -left-4 w-10 h-10 flex items-center justify-center z-[300] cursor-nesw-resize group">
+                      <div onMouseDown={(e) => handleResizeStart(item.id, e)} onTouchStart={(e) => handleResizeStart(item.id, e)} style={{ left: `${h.bl.x}%`, top: `${h.bl.y}%`, transform: `translate(-50%, -50%) scale(${1 / (item.scale * zoom)})` }} className="absolute w-10 h-10 flex items-center justify-center z-[300] cursor-nesw-resize group">
                         <div className="w-5 h-5 bg-white rounded-full border-2 border-black shadow-lg group-active:scale-125 transition-transform"></div>
                       </div>
-                      <div onMouseDown={(e) => handleResizeStart(item.id, e)} onTouchStart={(e) => handleResizeStart(item.id, e)} style={{ transform: `scale(${1 / (item.scale * zoom)})` }} className="absolute -bottom-4 -right-4 w-10 h-10 flex items-center justify-center z-[300] cursor-nwse-resize group">
+                      <div onMouseDown={(e) => handleResizeStart(item.id, e)} onTouchStart={(e) => handleResizeStart(item.id, e)} style={{ left: `${h.br.x}%`, top: `${h.br.y}%`, transform: `translate(-50%, -50%) scale(${1 / (item.scale * zoom)})` }} className="absolute w-10 h-10 flex items-center justify-center z-[300] cursor-nwse-resize group">
                         <div className="w-5 h-5 bg-white rounded-full border-2 border-black shadow-lg group-active:scale-125 transition-transform"></div>
                       </div>
                     </>
@@ -681,7 +690,7 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({
                     onTouchStart={(e) => e.stopPropagation()}
                   >
                     <button
-                      onClick={(e) => { e.stopPropagation(); setPlacedItems(prev => prev.filter(i => i.id !== item.id)); }}
+                      onClick={(e) => { e.stopPropagation(); onSaveToHistory?.(); setPlacedItems(prev => prev.filter(i => i.id !== item.id)); }}
                       className="w-10 h-10 md:w-8 md:h-8 bg-red-500/10 text-red-500 rounded-full hover:bg-red-500 hover:text-white transition-all flex items-center justify-center"
                     >
                       <i className="fa-solid fa-trash-can text-[10px] md:text-[9px]"></i>

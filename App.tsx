@@ -10,6 +10,7 @@ import ComparisonSlider from './components/ComparisonSlider';
 import ApiKeyModal from './components/ApiKeyModal';
 import { BrushToolbar } from './components/BrushToolbar';
 import { DrawingElement } from './components/DrawingElement';
+import Navbar from './components/Navbar';
 import { DrawingStroke, BrushType, Point, DrawingSegment } from './src/domain/types';
 
 interface ColorVariantItem extends AssetItem {
@@ -64,7 +65,51 @@ const App: React.FC = () => {
   const [activeBrushColor, setActiveBrushColor] = useState('#A2AD91');
   const [activeBrushWidth, setActiveBrushWidth] = useState(3);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const [isResetModalOpen, setIsResetModalOpen] = useState(false);
+  const [historyStack, setHistoryStack] = useState<PlacedItem[][]>([]);
+  const [futureStack, setFutureStack] = useState<PlacedItem[][]>([]);
   const projectInputRef = useRef<HTMLInputElement>(null);
+
+  const saveToHistory = (currentItems: PlacedItem[]) => {
+    setHistoryStack(prev => [...prev.slice(-49), currentItems]);
+    setFutureStack([]);
+  };
+
+  const undo = () => {
+    if (historyStack.length === 0) return;
+    const previous = historyStack[historyStack.length - 1];
+    setFutureStack(prev => [...prev, placedItems]);
+    setHistoryStack(prev => prev.slice(0, -1));
+    setPlacedItems(previous);
+  };
+
+  const redo = () => {
+    if (futureStack.length === 0) return;
+    const next = futureStack[futureStack.length - 1];
+    setHistoryStack(prev => [...prev, placedItems]);
+    setFutureStack(prev => prev.slice(0, -1));
+    setPlacedItems(next);
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') {
+        if (e.shiftKey) {
+          e.preventDefault();
+          redo();
+        } else {
+          e.preventDefault();
+          undo();
+        }
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'y') {
+        e.preventDefault();
+        redo();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [historyStack, futureStack, placedItems]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -99,6 +144,10 @@ const App: React.FC = () => {
   };
 
   const handleAddItem = (itemId: string, name: string, image: string, x: number, y: number, h: number, s: number, b: number, description: string, visualBehavior: VisualBehavior, category: AssetCategory) => {
+    // Redundant safety check to prevent rapid-click duplicates
+    if (placedItems.some(item => item.itemId === itemId)) return;
+
+    saveToHistory(placedItems);
     const img = new Image();
     img.onload = () => {
       const ratio = img.width / img.height;
@@ -189,6 +238,17 @@ const App: React.FC = () => {
     setApiKeyModalOpen(true);
   };
 
+  const handleResetProject = () => {
+    setPlacedItems([]);
+    setBackgroundImage(null);
+    setSceneResolution(null);
+    setRenderedImage(null);
+    setShowComparison(false);
+    setDrawingStrokes([]);
+    setRelationGroups({});
+    setIsResetModalOpen(false);
+  };
+
   const handleDownloadImage = () => {
     if (!renderedImage) return;
     const link = document.createElement('a');
@@ -232,6 +292,7 @@ const App: React.FC = () => {
       try {
         const data = JSON.parse(event.target?.result as string);
         if (data.backgroundImage !== undefined) setBackgroundImage(data.backgroundImage);
+        saveToHistory(placedItems);
         if (data.placedItems) setPlacedItems(data.placedItems);
         if (data.userAssets) setUserAssets(data.userAssets);
         if (data.sceneResolution) setSceneResolution(data.sceneResolution);
@@ -298,7 +359,7 @@ const App: React.FC = () => {
       } else if (errorMessage.includes("Requested entity was not found") || errorMessage.includes("404")) {
         alert("❌ El modelo de IA seleccionado no está disponible con tu API Key o región. Intentando cambiar de modelo...");
       } else {
-        alert(`❌ Error inesperado: \${errorMessage.substring(0, 100)}...`);
+        alert(`❌ Error inesperado: ${errorMessage.substring(0, 100)}...`);
       }
     } finally {
       setIsRendering(false);
@@ -327,15 +388,36 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="h-screen w-screen bg-[#121212] text-white flex flex-col md:flex-row overflow-hidden font-sans relative">
+    <div className="flex flex-col h-screen bg-[#121212] overflow-hidden">
+      <Navbar 
+        onLoadScene={() => fileInputRef.current?.click()}
+        onUseWebcam={() => setIsWebcamOpen(true)}
+        onSaveProject={handleExportProject}
+        onLoadProject={() => projectInputRef.current?.click()}
+        onResetProject={() => setIsResetModalOpen(true)}
+        onResetApiKey={handleResetApiKey}
+        onZoomIn={() => setCanvasZoom(z => Math.min(5, z + 0.2))}
+        onZoomOut={() => setCanvasZoom(z => Math.max(0.2, z - 0.2))}
+        onResetZoom={() => { setCanvasZoom(1.0); setPanOffset({ x: 0, y: 0 }); }}
+        onRender={processWithAI}
+        onUndo={undo}
+        onRedo={redo}
+        canUndo={historyStack.length > 0}
+        canRedo={futureStack.length > 0}
+        isRendering={isRendering}
+        canRender={placedItems.length > 0}
+        currentZoom={Math.round(canvasZoom * 100)}
+      />
+
+      <div className="flex-1 flex flex-col md:flex-row overflow-hidden font-sans relative md:pt-10">
 
       {/* BARRA LATERAL IZQUIERDA: GESTIÓN */}
       <div className={`
-        fixed inset-y-0 left-0 z-[500] w-full md:w-64 transform transition-transform duration-700 ease-[cubic-bezier(0.19,1,0.22,1)] flex
+        fixed top-0 md:top-10 bottom-0 left-0 z-[500] w-full md:w-64 transform transition-transform duration-700 ease-[cubic-bezier(0.19,1,0.22,1)] flex pointer-events-none
         ${window.innerWidth < 768 ? (activeMobileTab === 'budget' ? 'translate-x-0' : '-translate-x-full') : (isLeftBarOpen ? 'translate-x-0' : 'translate-x-[calc(-100%+24px)]')}
       `}>
-        <aside className="flex-1 bg-[#1a1a1a] md:bg-[#1a1a1a]/80 backdrop-blur-3xl border-r border-white/5 flex flex-col shadow-2xl relative overflow-hidden">
-          <div className="p-4 flex flex-col gap-3 items-stretch z-10">
+        <aside className="flex-1 bg-[#1a1a1a] md:bg-[#1a1a1a]/80 backdrop-blur-3xl border-r border-white/5 flex flex-col shadow-2xl relative overflow-hidden pointer-events-auto">
+          <div className="p-4 flex flex-col gap-3 items-stretch z-10 md:hidden">
             <button
               onClick={() => { setPlacedItems([]); setBackgroundImage(null); setSceneResolution(null); setRenderedImage(null); setShowComparison(false); }}
               className="h-10 w-full px-4 rounded-xl border border-white/10 flex items-center justify-center hover:bg-white/10 transition-all shrink-0 group"
@@ -441,7 +523,7 @@ const App: React.FC = () => {
                   <button
                     onClick={processWithAI}
                     disabled={isRendering}
-                    className="w-full h-12 rounded-xl bg-alpine-sap text-black font-black text-[9px] uppercase tracking-[0.2em] flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-95 transition-all shadow-lg shadow-alpine-sap/10"
+                    className="w-full h-12 rounded-xl bg-alpine-sap text-black font-black text-[9px] uppercase tracking-[0.2em] flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-95 transition-all shadow-lg shadow-alpine-sap/10 md:hidden"
                   >
                     <i className={`fa-solid ${isRendering ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'}`}></i>
                     <span>Generar Render</span>
@@ -887,7 +969,7 @@ const App: React.FC = () => {
             </div>
           </div>
         </aside>
-        <button onClick={() => setIsLeftBarOpen(!isLeftBarOpen)} className="hidden md:flex h-20 w-5 bg-black/80 backdrop-blur-3xl border border-white/10 border-l-0 rounded-r-2xl self-center items-center justify-center text-white/20 hover:text-white transition-all shadow-2xl z-[510] relative -left-[1px]"><i className={`fa-solid ${isLeftBarOpen ? 'fa-chevron-left' : 'fa-chevron-right'} text-[7px]`}></i></button>
+        <button onClick={() => setIsLeftBarOpen(!isLeftBarOpen)} className="hidden md:flex h-20 w-5 bg-black/80 backdrop-blur-3xl border border-white/10 border-l-0 rounded-r-2xl self-center items-center justify-center text-white/20 hover:text-white transition-all shadow-2xl z-[510] relative -left-[1px] pointer-events-auto"><i className={`fa-solid ${isLeftBarOpen ? 'fa-chevron-left' : 'fa-chevron-right'} text-[7px]`}></i></button>
       </div>
 
       {/* ÁREA PRINCIPAL: LIENZO */}
@@ -932,10 +1014,12 @@ const App: React.FC = () => {
                 )}
               </div>
             ) : (
-              <CameraCapture
+              <>
+                <CameraCapture
                 darkMode={true}
                 placedItems={placedItems}
                 setPlacedItems={setPlacedItems}
+                onSaveToHistory={() => saveToHistory(placedItems)}
                 selectedId={selectedId}
                 setSelectedId={setSelectedId}
                 externalBackground={backgroundImage}
@@ -979,7 +1063,53 @@ const App: React.FC = () => {
                   }
                 }}
               />
-            )}
+
+              {/* BARRA DE HERRAMIENTAS FLOTANTE - DEBAJO DEL LIENZO */}
+              <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-[#121212]/80 backdrop-blur-3xl px-5 py-2.5 rounded-full border border-white/10 shadow-2xl z-[1000] scale-90 md:scale-100 ring-1 ring-white/5 animate-fade-in-up">
+                {/* UNDO/REDO */}
+                <div className="flex items-center gap-1 mr-4 border-r border-white/10 pr-4">
+                  <button
+                    onClick={undo}
+                    disabled={historyStack.length === 0}
+                    title="Deshacer (Cmd+Z)"
+                    className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${historyStack.length > 0 ? 'text-white/80 hover:bg-white/10 hover:text-white' : 'text-white/10'}`}
+                  >
+                    <i className="fa-solid fa-rotate-left text-[11px]"></i>
+                  </button>
+                  <button
+                    onClick={redo}
+                    disabled={futureStack.length === 0}
+                    title="Rehacer (Cmd+Shift+Z)"
+                    className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${futureStack.length > 0 ? 'text-white/80 hover:bg-white/10 hover:text-white' : 'text-white/10'}`}
+                  >
+                    <i className="fa-solid fa-rotate-right text-[11px]"></i>
+                  </button>
+                </div>
+
+                {/* ZOOM CONTROLS */}
+                <div className="flex items-center gap-4">
+                  <button
+                    onClick={() => setCanvasZoom(z => Math.max(0.2, z - 0.2))}
+                    className="w-10 h-10 rounded-xl flex items-center justify-center text-white/60 hover:bg-white/10 hover:text-white transition-all"
+                  >
+                    <i className="fa-solid fa-minus text-[10px]"></i>
+                  </button>
+                  <button 
+                    onClick={() => { setCanvasZoom(1.0); setPanOffset({ x: 0, y: 0 }); }}
+                    className="px-3 py-1.5 bg-white/5 rounded-lg text-[10px] font-black tracking-widest text-white/60 hover:text-white hover:bg-white/10 transition-all min-w-[60px] text-center"
+                  >
+                    {Math.round(canvasZoom * 100)}%
+                  </button>
+                  <button
+                    onClick={() => setCanvasZoom(z => Math.min(5, z + 0.2))}
+                    className="w-10 h-10 rounded-xl flex items-center justify-center text-white/60 hover:bg-white/10 hover:text-white transition-all"
+                  >
+                    <i className="fa-solid fa-plus text-[10px]"></i>
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
           </div>
         </div>
       </main>
@@ -1022,11 +1152,11 @@ const App: React.FC = () => {
 
       {/* BARRA LATERAL DERECHA: CATÁLOGO */}
       <div className={`
-        fixed inset-y-0 right-0 z-[500] w-full md:w-80 transform transition-transform duration-700 ease-[cubic-bezier(0.19,1,0.22,1)] flex
+        fixed top-0 md:top-10 bottom-0 right-0 z-[500] w-full md:w-80 transform transition-transform duration-700 ease-[cubic-bezier(0.19,1,0.22,1)] flex pointer-events-none
         ${window.innerWidth < 768 ? (activeMobileTab === 'shop' ? 'translate-x-0' : 'translate-x-full') : (isRightBarOpen ? 'translate-x-0' : 'translate-x-[calc(100%-24px)]')}
       `}>
-        <button onClick={() => setIsRightBarOpen(!isRightBarOpen)} className="hidden md:flex h-20 w-5 bg-black/80 backdrop-blur-3xl border border-white/10 border-r-0 rounded-l-2xl self-center items-center justify-center text-white/20 hover:text-white transition-all shadow-2xl z-[510] relative -right-[1px]"><i className={`fa-solid ${isRightBarOpen ? 'fa-chevron-right' : 'fa-chevron-left'} text-[7px]`}></i></button>
-        <aside className="flex-1 bg-[#121212] md:bg-[#121212]/95 backdrop-blur-3xl md:border-l border-white/5 p-6 md:p-7 overflow-y-auto scrollbar-hide shadow-2xl relative">
+        <button onClick={() => setIsRightBarOpen(!isRightBarOpen)} className="hidden md:flex h-20 w-5 bg-black/80 backdrop-blur-3xl border border-white/10 border-r-0 rounded-l-2xl self-center items-center justify-center text-white/20 hover:text-white transition-all shadow-2xl z-[510] relative -right-[1px] pointer-events-auto"><i className={`fa-solid ${isRightBarOpen ? 'fa-chevron-right' : 'fa-chevron-left'} text-[7px]`}></i></button>
+        <aside className="flex-1 bg-[#121212] md:bg-[#121212]/95 backdrop-blur-3xl md:border-l border-white/5 p-6 md:p-7 overflow-y-auto scrollbar-hide shadow-2xl relative pointer-events-auto">
           {!renderedImage ? (
             <AssetCarousel 
               onSelectItem={handleAddItem} 
@@ -1036,6 +1166,7 @@ const App: React.FC = () => {
               setUserAssets={setUserAssets}
               onUserFileUpload={handleUserFileUpload}
               hasBackground={!!backgroundImage}
+              placedItems={placedItems}
             />
           ) : (
             <div className="h-full flex flex-col items-center justify-center gap-6 text-center opacity-20">
@@ -1101,8 +1232,40 @@ const App: React.FC = () => {
           onClose={() => setIsWebcamOpen(false)}
         />
       )}
+
+      {/* MODAL DE REINICIAR */}
+      {isResetModalOpen && (
+        <div className="fixed inset-0 z-[3000] bg-black/80 backdrop-blur-xl flex items-center justify-center p-4">
+          <div className="bg-[#1a1a1a] border border-white/10 p-8 rounded-3xl max-w-sm w-full space-y-6 shadow-2xl animate-fade-in-up">
+            <div className="text-center space-y-2">
+              <div className="w-12 h-12 bg-red-500/10 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                <i className="fa-solid fa-rotate-left text-xl"></i>
+              </div>
+              <h3 className="text-sm font-black uppercase tracking-[0.3em] text-white">¿Reiniciar Mesa?</h3>
+              <p className="text-[9px] text-white/40 uppercase tracking-widest leading-loose">
+                Se perderán todas las capas y el fondo actual. Esta acción no se puede deshacer.
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <button 
+                onClick={() => setIsResetModalOpen(false)}
+                className="flex-1 py-3 rounded-xl bg-white/5 border border-white/10 text-[9px] font-black uppercase tracking-widest text-white/60 hover:bg-white/10 transition-all"
+              >
+                Cancelar
+              </button>
+              <button 
+                onClick={handleResetProject}
+                className="flex-1 py-3 rounded-xl bg-red-600 text-white text-[9px] font-black uppercase tracking-widest hover:bg-red-500 transition-all shadow-lg shadow-red-600/20"
+              >
+                Reiniciar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
-  );
+  </div>
+);
 };
 
 export default App;

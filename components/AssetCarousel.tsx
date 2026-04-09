@@ -10,6 +10,7 @@ interface AssetCarouselProps {
   setUserAssets: React.Dispatch<React.SetStateAction<ColorVariantItem[]>>;
   onUserFileUpload: (files: FileList | File[]) => void;
   hasBackground: boolean;
+  placedItems: { itemId: string }[];
 }
 
 interface ColorVariantItem extends AssetItem {
@@ -18,11 +19,16 @@ interface ColorVariantItem extends AssetItem {
   brightness?: number;
 }
 
-const AssetCarousel: React.FC<AssetCarouselProps> = ({ onSelectItem, selectedId, darkMode, userAssets, setUserAssets, onUserFileUpload, hasBackground }) => {
+const AssetCarousel: React.FC<AssetCarouselProps> = ({ onSelectItem, selectedId, darkMode, userAssets, setUserAssets, onUserFileUpload, hasBackground, placedItems }) => {
   const [expandedCategory, setExpandedCategory] = useState<AssetCategory | null>(AssetCategory.INVENTORY);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleDragStart = (e: React.DragEvent, item: ColorVariantItem) => {
+    // Prevent drag if used
+    if (placedItems.some(pi => pi.itemId === item.id)) {
+      e.preventDefault();
+      return;
+    }
     e.dataTransfer.setData("application/json", JSON.stringify({
       id: item.id,
       name: item.name,
@@ -100,41 +106,75 @@ const AssetCarousel: React.FC<AssetCarouselProps> = ({ onSelectItem, selectedId,
                     <p className="text-[7px] font-bold uppercase tracking-widest text-white/20">Sin assets en esta categoría</p>
                   </div>
                 )}
-                {categoryItems.map((item) => (
-                  <div
-                    key={item.id}
-                    draggable="true"
-                    onDragStart={(e) => handleDragStart(e, item)}
-                    onClick={() => onSelectItem(item.id, item.name, item.image, 50, 50, item.hueRotate || 0, item.saturation || 1, item.brightness || 1, item.description, item.visualBehavior || 'strict', item.category)}
-                    className="group relative flex gap-4 p-3 rounded-3xl transition-all duration-300 border bg-white/[0.01] border-white/[0.03] hover:bg-white/[0.08] hover:border-white/10 cursor-pointer"
-                  >
-                    <div className="w-20 h-20 shrink-0 bg-black/40 rounded-2xl flex items-center justify-center p-2 group-hover:scale-110 transition-transform overflow-hidden shadow-inner">
-                      <img
-                        src={item.image}
-                        style={{ filter: `hue-rotate(${item.hueRotate || 0}deg) saturate(${item.saturation || 1}) brightness(${item.brightness || 1})` }}
-                        className="w-full h-full object-contain drop-shadow-md"
-                        alt={item.name}
-                      />
-                    </div>
-                    <div className="flex flex-col justify-center min-w-0 flex-1">
-                      <div className="flex flex-col gap-1.5">
-                        <span className="text-[8px] font-black uppercase tracking-widest text-white/90 truncate">{item.name}</span>
-                        <select 
-                          className="w-fit text-[5px] font-bold px-1.5 py-0.5 rounded border border-white/20 bg-black text-white/60 outline-none hover:border-alpine-sap/40 transition-colors"
-                          value={item.category}
-                          onClick={(e) => e.stopPropagation()}
-                          onChange={(e) => {
-                            const newCat = e.target.value as AssetCategory;
-                            setUserAssets(prev => prev.map(a => a.id === item.id ? { ...a, category: newCat } : a));
-                          }}
+                  {categoryItems.map((item) => {
+                    const isUsed = placedItems.some(pi => pi.itemId === item.id);
+                    
+                    const handleDuplicate = (e: React.MouseEvent) => {
+                      e.stopPropagation();
+                      const newItem: ColorVariantItem = {
+                        ...item,
+                        id: `${item.id}-copy-${Date.now()}`,
+                        name: `${item.name} (Copy)`
+                      };
+                      setUserAssets(prev => [...prev, newItem]);
+                    };
+
+                    return (
+                      <div
+                        key={item.id}
+                        draggable={!isUsed}
+                        onDragStart={(e) => handleDragStart(e, item)}
+                        onClick={() => !isUsed && onSelectItem(item.id, item.name, item.image, 50, 50, item.hueRotate || 0, item.saturation || 1, item.brightness || 1, item.description, item.visualBehavior || 'strict', item.category)}
+                        className={`group relative flex gap-4 p-3 rounded-3xl transition-all duration-300 border ${
+                          isUsed 
+                            ? 'bg-white/[0.01] border-white/5 opacity-40 grayscale cursor-not-allowed' 
+                            : 'bg-white/[0.01] border-white/[0.03] hover:bg-white/[0.08] hover:border-white/10 cursor-pointer'
+                        }`}
+                      >
+                        {/* DUPLICATE BUTTON - ALWAYS ENABLED & VISIBLE */}
+                        <button
+                          onClick={handleDuplicate}
+                          title="Duplicar Asset"
+                          className="absolute top-2 right-2 w-6 h-6 rounded-full bg-white text-black border border-white/20 flex items-center justify-center shadow-lg hover:bg-alpine-sap hover:scale-110 transition-all duration-300 z-10"
                         >
-                          {categories.map(c => <option key={c} value={c}>{c}</option>)}
-                        </select>
+                          <i className="fa-solid fa-clone text-[8px]"></i>
+                        </button>
+
+                        {/* USED BADGE */}
+                        {isUsed && (
+                          <div className="absolute inset-0 flex items-center justify-center z-0">
+                            <span className="px-2 py-0.5 rounded bg-black/60 text-white/40 text-[6px] font-black uppercase tracking-widest border border-white/10 backdrop-blur-sm">En Uso</span>
+                          </div>
+                        )}
+
+                        <div className="w-20 h-20 shrink-0 bg-black/40 rounded-2xl flex items-center justify-center p-2 group-hover:scale-110 transition-transform overflow-hidden shadow-inner">
+                          <img
+                            src={item.image}
+                            style={{ filter: `hue-rotate(${item.hueRotate || 0}deg) saturate(${item.saturation || 1}) brightness(${item.brightness || 1})` }}
+                            className="w-full h-full object-contain drop-shadow-md"
+                            alt={item.name}
+                          />
+                        </div>
+                        <div className="flex flex-col justify-center min-w-0 flex-1">
+                          <div className="flex flex-col gap-1.5">
+                            <span className="text-[8px] font-black uppercase tracking-widest text-white/90 truncate pr-6">{item.name}</span>
+                            <select 
+                              className="w-fit text-[5px] font-bold px-1.5 py-0.5 rounded border border-white/20 bg-black text-white/60 outline-none hover:border-alpine-sap/40 transition-colors"
+                              value={item.category}
+                              onClick={(e) => e.stopPropagation()}
+                              onChange={(e) => {
+                                const newCat = e.target.value as AssetCategory;
+                                setUserAssets(prev => prev.map(a => a.id === item.id ? { ...a, category: newCat } : a));
+                              }}
+                            >
+                              {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                            </select>
+                          </div>
+                          <p className="text-[6px] text-white/40 line-clamp-2 mt-1 leading-relaxed uppercase tracking-wider">{item.description}</p>
+                        </div>
                       </div>
-                      <p className="text-[6px] text-white/40 line-clamp-2 mt-1 leading-relaxed uppercase tracking-wider">{item.description}</p>
-                    </div>
-                  </div>
-                ))}
+                    );
+                  })}
               </div>
             </div>
           </div>
