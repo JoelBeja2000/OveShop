@@ -1,44 +1,42 @@
 # Architectural Identity - OveShop
 
-OveShop is not a generic image editor; it is a **Hierarchical AI Orchestrator** designed to bridge the gap between abstract intent and physical materiality through a unique multi-prompt and semantic mapping architecture.
+OveShop is a **Hierarchical AI Orchestration Suite** designed for extreme precision in multimodal generation. Its architecture enables the control of complex scenes with dozens of entities through a granular prompting engine.
 
-## ⚜️ Distinctive Pillars
+## ⚜️ Functional Pillars
 
 ### 1. Hierarchical Prompting Architecture (HPA)
-Unlike standard AI tools that use a single global prompt, OveShop implements a **layered prompting tree**:
-- **Atomic Prompts**: Every asset (layer) possesses its own independent metadata. You can specify that a "Stone" asset should be "Lava Red" without affecting the rest of the scene.
-- **Linked Entities**: Multiple layers can be grouped into "Entidades Enlazadas". This allows for complex relationships where individual layer prompts coexist with a group-level behavioral prompt.
-- **Global Synthesis**: The engine aggregates this tree into a structured multimodal request, ensuring the AI understands the distinction between background, individual objects, and their specific modifications.
+The system decomposes a scene into a tree of executable instructions:
+- **Object-Level Prompts**: Each asset (layer) maintains its own metadata (e.g., "Texture: Red Lava Stone").
+- **Relational AI (Linked Groups)**: Objects can be semantically connected. A "Stone" and "Water" layer can be linked with a relationship prompt ("water flowing out of the stone"). The engine ensures the AI respects this physical interaction.
+- **Massive Orchestration**: Optimized to handle high-density scenes (50+ objects). Each entity’s position, posture, and material are tracked independently and synthesized into a structured context for Gemini-Pro.
 
-### 2. Semantic Ink Engine (Drawing-to-Material)
-Drawing in OveShop is a semantic operation, not just a visual one:
-- **Property-Encoded Strokes**: Every stroke color in the custom palette is linked to a **Material Property** (e.g., depth, emissivity, roughness).
-- **Material Glossary**: Users can assign properties like "Etched Wood" or "Engraved Metal" to specific colors. The AI interprets these colors as material instructions rather than flat pigments.
+### 2. Semantic Mapping (Ink & Typography)
+Control through chroma-material affinity:
+- **Semantic Ink**: Stroke colors map to material properties (Metal, Glow, Depth). Drawing a "blue neon" stroke over a surface instructs the AI to treat it as a light source.
+- **Material Typography**: Rich text colors encode physical depth. Brown text on a stone background can be mapped as a "Deep Engraving", causing the AI to generate appropriate shadows and textures.
 
-### 3. Semantic Typography (Material-Aware Text)
-Text interactions in OveShop are physics-aware:
-- **Chroma-Encoded Depth**: Colors in rich text components are mapped to physical properties. A brown text color might signify a "Deep Engraving", while a neon-blue indicates "Self-Emitting Glow".
-- **Inter-Layer Awareness**: When text is placed over a specific background material, the AI cross-references the text property to determine interaction (shadows, reflections, textures).
+### 3. Geometric AI Guidance (Fast Deformation)
+- **Perspective Blueprinting**: Quick distortion of assets helps the AI understand the intended 3D space, minimizing hallucinations and ensuring strict alignment with the base photo's geometry.
 
-### 4. Fast Deformation (AI Guidance Bridge)
-The system allows for **Rapid Geometric Pre-processing**:
-- **Warping for AI**: Assets can be quickly deformed or skewed to match the perspective and geometry of the base photo.
-- **Post-Processing Support**: This manual deformation serves as a "blueprint" that helps the AI minimize hallucinations during the final rendering pass, ensuring the generated assets align perfectly with the scene's physics.
-
-## Technical Implementation Logics
+## Technical Execution Flow
 
 ```mermaid
 graph TD
-    UserInput[Text/Drawing/Image] --> ColorMap[Semantic Color Mapper]
-    ColorMap --> MaterialDef[Material/Property Definition]
+    UI[Creative Input] --> Registry[Entity Registry]
+    Registry --> Meta[Object-Level Metadata]
+    Registry --> Relation[Relational Linking Engine]
     
-    subgraph PromptTree[Hierarchical Prompting Tree]
-        GlobalP[Global Scene Prompt]
-        GroupP[Group/Linked Prompt]
-        ItemP[Individual Item Prompt]
+    subgraph SynthesisEngine[AI Orchestrator]
+        HPA[Hierarchical Prompt Builder]
+        Chroma[Chroma-Material Resolver]
     end
     
-    MaterialDef --> ItemP
-    GlobalP & GroupP & ItemP --> GeminiAdapter[Gemini AI Adapter]
-    GeminiAdapter --> FinalRender[Material-Realistic Render]
+    Meta & Relation --> HPA
+    HPA & Chroma --> Gemini[Gemini Multimodal API]
+    Gemini --> Render[High-Fidelity Render]
 ```
+
+## Core Modules
+- **`relationGroups` (State)**: Manages semantic links between disparate layers.
+- **`GeminiAIAdapter`**: Synthesizes the hierarchy into a unified multimodal request.
+- **`DrawingElement` / `TextProperties`**: Encodes material intent based on color selection.
