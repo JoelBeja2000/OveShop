@@ -137,19 +137,14 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const checkKey = async () => {
-      // FORCE FIX: Set the correct key provided by user
-      const correctKey = 'AIzaSyD-vSinXxuPCk6lEs2HsU0RBOEJUdIn2QE';
       const storedKey = localStorage.getItem('gemini_api_key');
 
-      if (storedKey !== correctKey) {
-        localStorage.setItem('gemini_api_key', correctKey);
-        setUserApiKey(correctKey);
-        setHasApiKey(true);
-      } else if (window.aistudio) {
+      if (window.aistudio) {
         const selected = await window.aistudio.hasSelectedApiKey();
         setHasApiKey(selected);
       } else if (storedKey) {
         setHasApiKey(true);
+        setUserApiKey(storedKey);
       }
     };
     checkKey();
