@@ -1,11 +1,12 @@
-# Bug Registry
+# Bug Registry / Registro de Errores
 
-## Active Bugs
+## Active Bugs / Errores Activos
 
-| Bug ID | Author | Description | Fix Details |
+| Bug ID | Author | Description / Descripción | Fix Details / Detalles de la Solución |
 | :--- | :--- | :--- | :--- |
-| `BUG-001` | @antigravity | Drawing assets showing placeholder wing icon. | Implemented dynamic SVG data URL generation from strokes in `App.tsx`. |
-| `BUG-002` | @antigravity | Drawing strokes offset/shifted from bounding box. | Simplified `DrawingElement.tsx` to handle 0-100% normalization without pixel-based padding. |
-| `BUG-003` | @antigravity | Color chips missing in grouped layer items. | Synchronized the color labeling UI between Case A (standalone) and Case B (grouped) items in `App.tsx`. |
-| `BUG-004` | @antigravity | Recurrent stroke thickening during re-edits. | Implemented scale factor normalization in `handleFinishDrawing` to maintain visual consistent width. |
-| `BUG-005` | @antigravity | Drawing hitbox/UI mismatch after resizing. | Implemented dynamic bounding box recalculation and SVG ratio scaling in `CameraCapture.tsx`. |
+| `BUG-001` | @antigravity | Drawing assets showing placeholder wing icon. / Icono de ala en assets de dibujo. | Implemented dynamic SVG data URL generation. / Generación dinámica de Data URL SVG. |
+| `BUG-002` | @antigravity | Drawing strokes offset/shifted. / Trazos de dibujo desplazados. | Normalized coordinates to 0-100% in DrawingElement. / Normalización de coordenadas al 0-100%. |
+| `BUG-003` | @antigravity | Color chips missing in grouped items. / Chips de color faltantes en grupos. | Synchronized labeling UI for grouped items. / Sincronización de etiquetas para grupos. |
+| `BUG-004` | @antigravity | Recurrent stroke thickening. / Engrosamiento de trazo recurrente. | Implemented scale factor normalization. / Normalización del factor de escala. |
+| `BUG-005` | @antigravity | Drawing hitbox mismatch. / Desajuste de hitbox en dibujo. | Dynamic bounding box recalculation. / Recálculo dinámico del bounding box. |
+| `BUG-006` | @antigravity | Native color picker persists. / Selector de color nativo persiste. | Implemented forced re-mount trick via React keys. / Re-montado forzado mediante keys de React. |
