@@ -17,7 +17,9 @@ interface CameraCaptureProps {
   setZoom: React.Dispatch<React.SetStateAction<number>>;
   panOffset: { x: number, y: number };
   setPanOffset: React.Dispatch<React.SetStateAction<{ x: number, y: number }>>;
-  isDrawingMode?: boolean;
+  interactionMode?: 'move' | 'draw' | 'text';
+  onAddText?: (x: number, y: number) => void;
+  setInteractionMode?: React.Dispatch<React.SetStateAction<'move' | 'draw' | 'text'>>;
   drawingStrokes?: DrawingStroke[];
   setDrawingStrokes?: React.Dispatch<React.SetStateAction<DrawingStroke[]>>;
   activeBrush?: { type: BrushType, color: string, width: number };
@@ -54,7 +56,8 @@ function getPerspectiveMatrix(w: number, h: number, p: PerspectivePoints) {
 
 const CameraCapture: React.FC<CameraCaptureProps> = ({
   placedItems, setPlacedItems, selectedId, setSelectedId, externalBackground, onDropItem, onFileUpload, zoom, setZoom, panOffset, setPanOffset,
-  isDrawingMode = false, drawingStrokes = [], setDrawingStrokes, activeBrush, onEditDrawing, onSaveToHistory
+  interactionMode = 'move', onAddText, setInteractionMode,
+  drawingStrokes = [], setDrawingStrokes, activeBrush, onEditDrawing, onSaveToHistory
 }) => {
   const canvasRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -339,7 +342,8 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({
 
   // DRAWING LOGIC
   const handleDrawingStart = (e: React.MouseEvent | React.TouchEvent) => {
-    if (!isDrawingMode || !activeBrush || !setDrawingStrokes) return;
+    const isDrawingModeActive = interactionMode === 'draw';
+    if (!isDrawingModeActive || !activeBrush || !setDrawingStrokes) return;
     e.stopPropagation();
     
     const isTouch = 'touches' in e;
@@ -465,8 +469,13 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({
     <div
       className="w-full h-full flex items-center justify-center relative select-none cursor-default overflow-hidden"
       onMouseDown={(e) => { 
-        if (isDrawingMode) {
+        if (interactionMode === 'draw') {
           handleDrawingStart(e);
+        } else if (interactionMode === 'text') {
+          const rect = canvasRef.current!.getBoundingClientRect();
+          const xPct = ((e.clientX - rect.left - panOffset.x - rect.width / 2) / zoom + rect.width / 2) / rect.width * 100;
+          const yPct = ((e.clientY - rect.top - panOffset.y - rect.height / 2) / zoom + rect.height / 2) / rect.height * 100;
+          onAddText?.(xPct, yPct);
         } else {
           setSelectedId(null); 
           setIsWarpMode(false);
@@ -474,8 +483,14 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({
         }
       }}
       onTouchStart={(e) => { 
-        if (isDrawingMode) {
+        if (interactionMode === 'draw') {
           handleDrawingStart(e);
+        } else if (interactionMode === 'text') {
+          const rect = canvasRef.current!.getBoundingClientRect();
+          const touch = e.touches[0];
+          const xPct = ((touch.clientX - rect.left - panOffset.x - rect.width / 2) / zoom + rect.width / 2) / rect.width * 100;
+          const yPct = ((touch.clientY - rect.top - panOffset.y - rect.height / 2) / zoom + rect.height / 2) / rect.height * 100;
+          onAddText?.(xPct, yPct);
         } else {
           setSelectedId(null); 
           setIsWarpMode(false);
@@ -613,16 +628,38 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({
                 className="w-full h-full pointer-events-none"
                 style={{ transform: matrix, transformOrigin: '0 0' }}
               >
-                <img
-                  src={item.image}
-                  className="w-full h-full object-contain drop-shadow-2xl"
-                  style={{
-                    filter: `hue-rotate(${item.hueRotate}deg) saturate(${item.saturation}) brightness(${item.brightness})`,
-                    transform: `scaleX(${item.scaleX || 1})`,
-                    display: (item.drawingStrokes && item.drawingStrokes.length > 0) ? 'none' : 'block'
-                  }}
-                  alt=""
-                />
+                {item.textConfig ? (
+                  <div
+                    className="w-full h-full flex items-center justify-center p-2 text-center select-none"
+                    style={{
+                      fontFamily: item.textConfig.fontFamily,
+                      fontSize: `${item.textConfig.fontSize}px`,
+                      color: item.textConfig.color,
+                      fontWeight: item.textConfig.fontWeight,
+                      fontStyle: item.textConfig.italic ? 'italic' : 'normal',
+                      textDecoration: item.textConfig.underline ? 'underline' : 'none',
+                      textAlign: item.textConfig.align,
+                      lineHeight: '1.2',
+                      whiteSpace: 'pre-wrap',
+                      wordBreak: 'break-word',
+                      filter: `hue-rotate(${item.hueRotate}deg) saturate(${item.saturation}) brightness(${item.brightness})`,
+                      transform: `scaleX(${item.scaleX || 1})`,
+                    }}
+                  >
+                    {item.textConfig.text}
+                  </div>
+                ) : (
+                  <img
+                    src={item.image}
+                    className="w-full h-full object-contain drop-shadow-2xl"
+                    style={{
+                      filter: `hue-rotate(${item.hueRotate}deg) saturate(${item.saturation}) brightness(${item.brightness})`,
+                      transform: `scaleX(${item.scaleX || 1})`,
+                      display: (item.drawingStrokes && item.drawingStrokes.length > 0) ? 'none' : 'block'
+                    }}
+                    alt=""
+                  />
+                )}
                 
                 {item.drawingStrokes && (
                   <div className="absolute inset-0 pointer-events-none">

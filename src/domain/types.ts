@@ -6,7 +6,19 @@ export enum AssetCategory {
   CHARACTER = 'Personaje',
   EFFECT = 'Efecto/VFX',
   OTHER = 'Otros',
-  DRAWING = 'Dibujo'
+  DRAWING = 'Dibujo',
+  TEXT = 'Texto'
+}
+
+export interface TextConfig {
+  text: string;
+  fontSize: number;
+  color: string;
+  fontFamily: string;
+  fontWeight: string;
+  italic: boolean;
+  underline: boolean;
+  align: 'left' | 'center' | 'right';
 }
 
 export type VisualBehavior = 'strict' | 'generative';
@@ -51,6 +63,7 @@ export interface PlacedItem {
   drawingStrokes?: DrawingStroke[];
   drawingBounds?: { minX: number, minY: number, width: number, height: number };
   colorLabels?: Record<string, string>;
+  textConfig?: TextConfig;
 }
 
 export type BrushType = 'pencil' | 'highlighter' | 'eraser';

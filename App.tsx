@@ -1,17 +1,17 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { PlacedItem, VisualBehavior, AssetCategory, AssetItem } from './src/domain/types';
+import { PlacedItem, VisualBehavior, AssetCategory, AssetItem, DrawingStroke, BrushType, Point, DrawingSegment, TextConfig } from './src/domain/types';
 import { GeminiAIAdapter } from './src/infrastructure/ai/GeminiAIAdapter';
 import { CanvasCollageAdapter } from './src/infrastructure/canvas/CanvasCollageAdapter';
 import AssetCarousel from './components/AssetCarousel';
 import CameraCapture from './components/CameraCapture';
 import WebcamCapture from './components/WebcamCapture';
+import { TextProperties } from './components/TextProperties';
 import ComparisonSlider from './components/ComparisonSlider';
 import ApiKeyModal from './components/ApiKeyModal';
 import { BrushToolbar } from './components/BrushToolbar';
 import { DrawingElement } from './components/DrawingElement';
 import Navbar from './components/Navbar';
-import { DrawingStroke, BrushType, Point, DrawingSegment } from './src/domain/types';
 
 interface ColorVariantItem extends AssetItem {
   hueRotate?: number;
@@ -60,7 +60,8 @@ const App: React.FC = () => {
   const [canvasZoom, setCanvasZoom] = useState<number>(1.0);
   const [panOffset, setPanOffset] = useState<{ x: number, y: number }>({ x: 0, y: 0 });
   const [drawingStrokes, setDrawingStrokes] = useState<DrawingStroke[]>([]);
-  const [isDrawingMode, setIsDrawingMode] = useState(false);
+  const [interactionMode, setInteractionMode] = useState<'move' | 'draw' | 'text'>('move');
+  const isDrawingMode = interactionMode === 'draw';
   const [activeBrushType, setActiveBrushType] = useState<BrushType>('pencil');
   const [activeBrushColor, setActiveBrushColor] = useState('#A2AD91');
   const [activeBrushWidth, setActiveBrushWidth] = useState(3);
@@ -143,8 +144,6 @@ const App: React.FC = () => {
     }
   };
 
-
-
   const moveLayer = (id: string, direction: 'up' | 'down', isBlock: boolean = false) => {
     saveToHistory(placedItems);
     setPlacedItems(prev => {
@@ -161,7 +160,7 @@ const App: React.FC = () => {
         return newItems;
       }
 
-      // BLOCK-AWARE SWAP (Original logic)
+      // BLOCK-AWARE SWAP
       const elements: (PlacedItem | { groupId: string; items: PlacedItem[] })[] = [];
       const groupMap: Record<string, { groupId: string; items: PlacedItem[] }> = {};
       
@@ -177,7 +176,6 @@ const App: React.FC = () => {
         }
       });
 
-      // 2. Find which element contains our id
       const elIdx = elements.findIndex(el => {
         if ('id' in el) return el.id === id;
         return el.items.some(it => it.id === id);
@@ -185,7 +183,6 @@ const App: React.FC = () => {
 
       if (elIdx === -1) return prev;
 
-      // 3. Swap elements
       const newElements = [...elements];
       if (direction === 'down' && elIdx > 0) {
         [newElements[elIdx], newElements[elIdx - 1]] = [newElements[elIdx - 1], newElements[elIdx]];
@@ -195,7 +192,6 @@ const App: React.FC = () => {
         return prev;
       }
 
-      // 4. Flatten back to placedItems
       const flattened: PlacedItem[] = [];
       newElements.forEach(el => {
         if ('id' in el) {
@@ -206,6 +202,38 @@ const App: React.FC = () => {
       });
       return flattened;
     });
+  };
+
+
+  const handleAddText = (x: number, y: number) => {
+    saveToHistory(placedItems);
+    const newId = Math.random().toString(36).substr(2, 9);
+    const newItem: PlacedItem = {
+      id: newId,
+      itemId: 'system-text',
+      name: 'Texto',
+      description: 'Capa de texto',
+      x,
+      y,
+      scale: 1.5,
+      aspectRatio: 2, 
+      rotation: 0,
+      image: '', 
+      visualBehavior: 'strict',
+      textConfig: {
+        text: 'Escribe aquí...',
+        fontSize: 32,
+        color: '#ffffff',
+        fontFamily: 'system-ui',
+        fontWeight: '900',
+        italic: false,
+        underline: false,
+        align: 'center'
+      }
+    };
+    setPlacedItems(prev => [...prev, newItem]);
+    setSelectedId(newId);
+    setInteractionMode('move'); 
   };
 
   const handleAddItem = (itemId: string, name: string, image: string, x: number, y: number, h: number, s: number, b: number, description: string, visualBehavior: VisualBehavior, category: AssetCategory) => {
@@ -241,6 +269,12 @@ const App: React.FC = () => {
     img.src = image;
   };
 
+  const handleUpdateText = (id: string, config: Partial<TextConfig>) => {
+    setPlacedItems(prev => prev.map(item => 
+      item.id === id ? { ...item, textConfig: { ...item.textConfig!, ...config } } : item
+    ));
+  };
+
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       if (backgroundImage || placedItems.length > 0) {
@@ -249,9 +283,26 @@ const App: React.FC = () => {
       }
     };
 
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [backgroundImage, placedItems.length]);
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      
+      if (e.key === 'v' || e.key === 'V') setInteractionMode('move');
+      if (e.key === 'b' || e.key === 'B') setInteractionMode('draw');
+      if (e.key === 't' || e.key === 'T') setInteractionMode('text');
+      
+      if ((e.metaKey || e.ctrlKey) && e.key === 'z') {
+        if (e.shiftKey) redo();
+        else undo();
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === 'y') redo();
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [backgroundImage, placedItems.length, historyStack.length, futureStack.length]);
 
   const handleUserFileUpload = (files: FileList | File[], dropPos?: { x: number, y: number }) => {
     Array.from(files).forEach((file: File, index) => {
@@ -596,114 +647,126 @@ const App: React.FC = () => {
                 )}
 
                 {backgroundImage && (
-                  <button
-                    onClick={() => {
-                      if (isDrawingMode) {
-                        // FINISH DRAWING
-                        if (drawingStrokes.length > 0) {
-                          let minX = 100, minY = 100, maxX = 0, maxY = 0;
-                          drawingStrokes.forEach(s => s.segments.forEach(seg => seg.points.forEach(p => {
-                            if (p.x < minX) minX = p.x;
-                            if (p.y < minY) minY = p.y;
-                            if (p.x > maxX) maxX = p.x;
-                            if (p.y > maxY) maxY = p.y;
-                          })));
-                          
-                          const centerX = (minX + maxX) / 2;
-                          const centerY = (minY + maxY) / 2;
-                          const width = Math.max(5, maxX - minX);
-                          const height = Math.max(5, maxY - minY);
-                          
-                          const normalizedStrokes = drawingStrokes.map(stroke => ({
-                            ...stroke,
-                            segments: stroke.segments.map(seg => ({
-                              ...seg,
-                              points: seg.points.map(p => ({
-                                x: ((p.x - minX) / width) * 100,
-                                y: ((p.y - minY) / height) * 100
+                  <>
+                    <button
+                      onClick={() => {
+                        if (interactionMode === 'draw') {
+                          // FINISH DRAWING
+                          if (drawingStrokes.length > 0) {
+                            let minX = 100, minY = 100, maxX = 0, maxY = 0;
+                            drawingStrokes.forEach(s => s.segments.forEach(seg => seg.points.forEach(p => {
+                              if (p.x < minX) minX = p.x;
+                              if (p.y < minY) minY = p.y;
+                              if (p.x > maxX) maxX = p.x;
+                              if (p.y > maxY) maxY = p.y;
+                            })));
+                            
+                            const centerX = (minX + maxX) / 2;
+                            const centerY = (minY + maxY) / 2;
+                            const width = Math.max(5, maxX - minX);
+                            const height = Math.max(5, maxY - minY);
+                            
+                            const normalizedStrokes = drawingStrokes.map(stroke => ({
+                              ...stroke,
+                              segments: stroke.segments.map(seg => ({
+                                ...seg,
+                                points: seg.points.map(p => ({
+                                  x: ((p.x - minX) / width) * 100,
+                                  y: ((p.y - minY) / height) * 100
+                                }))
                               }))
-                            }))
-                          }));
+                            }));
 
-                          // GENERATE SVG PREVIEW
-                          const svgPaths = normalizedStrokes.map(stroke => 
-                            stroke.segments.map(seg => {
-                              const pts = seg.points;
-                              if (pts.length === 0) return '';
-                              let d = `M ${pts[0].x} ${pts[0].y}`;
-                              for (let i = 1; i < pts.length - 1; i++) {
-                                const mid = { x: (pts[i].x + pts[i+1].x)/2, y: (pts[i].y + pts[i+1].y)/2 };
-                                d += ` Q ${pts[i].x} ${pts[i].y} ${mid.x} ${mid.y}`;
-                              }
-                              if (pts.length > 1) d += ` L ${pts[pts.length-1].x} ${pts[pts.length-1].y}`;
-                              return `<path d="${d}" fill="none" stroke="${seg.color}" stroke-width="${seg.width}" stroke-linecap="round" stroke-linejoin="round" opacity="${seg.opacity}" />`;
-                            }).join('')
-                          ).join('');
-                          
-                          const svgMarkup = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">${svgPaths}</svg>`;
-                          const drawingPreview = `data:image/svg+xml;base64,${btoa(svgMarkup)}`;
+                            // GENERATE SVG PREVIEW
+                            const svgPaths = normalizedStrokes.map(stroke => 
+                              stroke.segments.map(seg => {
+                                const pts = seg.points;
+                                if (pts.length === 0) return '';
+                                let d = `M ${pts[0].x} ${pts[0].y}`;
+                                for (let i = 1; i < pts.length - 1; i++) {
+                                  const mid = { x: (pts[i].x + pts[i+1].x)/2, y: (pts[i].y + pts[i+1].y)/2 };
+                                  d += ` Q ${pts[i].x} ${pts[i].y} ${mid.x} ${mid.y}`;
+                                }
+                                if (pts.length > 1) d += ` L ${pts[pts.length-1].x} ${pts[pts.length-1].y}`;
+                                return `<path d="${d}" fill="none" stroke="${seg.color}" stroke-width="${seg.width}" stroke-linecap="round" stroke-linejoin="round" opacity="${seg.opacity}" />`;
+                              }).join('')
+                            ).join('');
+                            
+                            const svgMarkup = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">${svgPaths}</svg>`;
+                            const drawingPreview = `data:image/svg+xml;base64,${btoa(svgMarkup)}`;
 
-                          if (editingItemId) {
-                            setPlacedItems(prev => prev.map(item => 
-                              item.id === editingItemId ? { 
-                                ...item, 
+                            if (editingItemId) {
+                              setPlacedItems(prev => prev.map(item => 
+                                item.id === editingItemId ? { 
+                                  ...item, 
+                                  image: drawingPreview,
+                                  x: centerX,
+                                  y: centerY,
+                                  aspectRatio: width / height,
+                                  drawingStrokes: normalizedStrokes,
+                                  drawingBounds: { minX, minY, width, height }
+                                } : item
+                              ));
+                            } else {
+                              const newId = Math.random().toString(36).substr(2, 9);
+                              const drawingName = 'Dibujo ' + (placedItems.filter(i => i.drawingStrokes).length + 1);
+                              
+                              const newAsset: ColorVariantItem = {
+                                id: 'asset_' + newId,
+                                name: drawingName,
+                                category: AssetCategory.DRAWING,
                                 image: drawingPreview,
+                                description: 'Trazo manual',
+                                visualBehavior: 'strict'
+                              };
+                              setUserAssets(prevAssets => [...prevAssets, newAsset]);
+
+                              setPlacedItems(prev => [...prev, {
+                                id: newId,
+                                itemId: newAsset.id,
+                                name: drawingName,
+                                description: 'Trazo manual',
+                                image: newAsset.image,
                                 x: centerX,
                                 y: centerY,
+                                scale: 1,
                                 aspectRatio: width / height,
+                                rotation: 0,
+                                visualBehavior: 'strict',
                                 drawingStrokes: normalizedStrokes,
-                                drawingBounds: { minX, minY, width, height }
-                              } : item
-                            ));
-                          } else {
-                            const newId = Math.random().toString(36).substr(2, 9);
-                            const drawingName = 'Dibujo ' + (placedItems.filter(i => i.drawingStrokes).length + 1);
-                            
-                            const newAsset: ColorVariantItem = {
-                              id: 'asset_' + newId,
-                              name: drawingName,
-                              category: AssetCategory.DRAWING,
-                              image: drawingPreview,
-                              description: 'Trazo manual',
-                              visualBehavior: 'strict'
-                            };
-                            setUserAssets(prevAssets => [...prevAssets, newAsset]);
-
-                            setPlacedItems(prev => [...prev, {
-                              id: newId,
-                              itemId: newAsset.id,
-                              name: drawingName,
-                              description: 'Trazo manual',
-                              image: newAsset.image,
-                              x: centerX,
-                              y: centerY,
-                              scale: 1,
-                              aspectRatio: width / height,
-                              rotation: 0,
-                              visualBehavior: 'strict',
-                              drawingStrokes: normalizedStrokes,
-                              drawingBounds: { minX, minY, width, height },
-                              perspective: { tl: { x: 0, y: 0 }, tr: { x: 0, y: 0 }, bl: { x: 0, y: 0 }, br: { x: 0, y: 0 } }
-                            }]);
-                            setSelectedId(newId);
+                                drawingBounds: { minX, minY, width, height },
+                                perspective: { tl: { x: 0, y: 0 }, tr: { x: 0, y: 0 }, bl: { x: 0, y: 0 }, br: { x: 0, y: 0 } }
+                              }]);
+                              setSelectedId(newId);
+                            }
                           }
+                          setDrawingStrokes([]);
+                          setEditingItemId(null);
+                          setInteractionMode('move');
+                        } else {
+                          setInteractionMode('draw');
+                          setEditingItemId(null);
+                          setDrawingStrokes([]);
                         }
-                        setDrawingStrokes([]);
-                        setEditingItemId(null);
-                        setIsDrawingMode(false);
-                      } else {
-                        setIsDrawingMode(true);
-                        setEditingItemId(null);
-                        setDrawingStrokes([]);
-                      }
-                    }}
-                    className={`w-full h-12 rounded-xl border border-white/10 font-black text-[9px] uppercase tracking-[0.2em] flex items-center justify-center gap-2 transition-all shadow-lg ${
-                      isDrawingMode ? 'bg-white text-black scale-105' : 'bg-white/5 text-white/40 hover:bg-white/10 hover:text-white'
-                    }`}
-                  >
-                    <i className="fa-solid fa-paintbrush"></i>
-                    <span>{isDrawingMode ? 'Finalizar Dibujo' : 'Modo Dibujo'}</span>
-                  </button>
+                      }}
+                      className={`w-full h-12 rounded-xl border border-white/10 font-black text-[9px] uppercase tracking-[0.2em] flex items-center justify-center gap-2 transition-all shadow-lg ${
+                        interactionMode === 'draw' ? 'bg-white text-black scale-105' : 'bg-white/5 text-white/40 hover:bg-white/10 hover:text-white'
+                      }`}
+                    >
+                      <i className="fa-solid fa-paintbrush"></i>
+                      <span>{interactionMode === 'draw' ? 'Finalizar Dibujo' : 'Modo Dibujo'}</span>
+                    </button>
+
+                    <button
+                      onClick={() => setInteractionMode(interactionMode === 'text' ? 'move' : 'text')}
+                      className={`w-full h-12 mt-2 rounded-xl border border-white/10 font-black text-[9px] uppercase tracking-[0.2em] flex items-center justify-center gap-2 transition-all shadow-lg ${
+                        interactionMode === 'text' ? 'bg-white text-black scale-105' : 'bg-white/5 text-white/40 hover:bg-white/10 hover:text-white'
+                      }`}
+                    >
+                      <i className="fa-solid fa-font"></i>
+                      <span>{interactionMode === 'text' ? 'Salir Modo Texto' : 'Modo Texto'}</span>
+                    </button>
+                  </>
                 )}
               </div>
             </div>
@@ -1149,7 +1212,9 @@ const App: React.FC = () => {
                 setZoom={setCanvasZoom}
                 panOffset={panOffset}
                 setPanOffset={setPanOffset}
-                isDrawingMode={isDrawingMode}
+                interactionMode={interactionMode}
+                onAddText={handleAddText}
+                setInteractionMode={setInteractionMode}
                 drawingStrokes={drawingStrokes}
                 setDrawingStrokes={setDrawingStrokes}
                 activeBrush={{
@@ -1178,7 +1243,7 @@ const App: React.FC = () => {
                     }));
                     
                     setEditingItemId(id);
-                    setIsDrawingMode(true);
+                    setInteractionMode('draw');
                     setDrawingStrokes(deNormalizedStrokes); 
                   }
                 }}
@@ -1225,6 +1290,31 @@ const App: React.FC = () => {
                     className="w-10 h-10 rounded-xl flex items-center justify-center text-white/60 hover:bg-white/10 hover:text-white transition-all"
                   >
                     <i className="fa-solid fa-plus text-[10px]"></i>
+                  </button>
+                </div>
+
+                {/* INTERACTION MODES */}
+                <div className="flex items-center gap-1 ml-4 border-l border-white/10 pl-4">
+                  <button
+                    onClick={() => setInteractionMode('move')}
+                    title="Modo Mover (V)"
+                    className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${interactionMode === 'move' ? 'bg-alpine-sap text-black' : 'text-white/40 hover:bg-white/10 hover:text-white'}`}
+                  >
+                    <i className="fa-solid fa-arrow-pointer text-[11px]"></i>
+                  </button>
+                  <button
+                    onClick={() => setInteractionMode('draw')}
+                    title="Modo Dibujo (B)"
+                    className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${interactionMode === 'draw' ? 'bg-alpine-sap text-black' : 'text-white/40 hover:bg-white/10 hover:text-white'}`}
+                  >
+                    <i className="fa-solid fa-paintbrush text-[11px]"></i>
+                  </button>
+                  <button
+                    onClick={() => setInteractionMode('text')}
+                    title="Modo Texto (T)"
+                    className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${interactionMode === 'text' ? 'bg-alpine-sap text-black' : 'text-white/40 hover:bg-white/10 hover:text-white'}`}
+                  >
+                    <i className="fa-solid fa-font text-[11px]"></i>
                   </button>
                 </div>
               </div>
@@ -1278,16 +1368,25 @@ const App: React.FC = () => {
         <button onClick={() => setIsRightBarOpen(!isRightBarOpen)} className="hidden md:flex h-20 w-5 bg-black/80 backdrop-blur-3xl border border-white/10 border-r-0 rounded-l-2xl self-center items-center justify-center text-white/20 hover:text-white transition-all shadow-2xl z-[510] relative -right-[1px] pointer-events-auto"><i className={`fa-solid ${isRightBarOpen ? 'fa-chevron-right' : 'fa-chevron-left'} text-[7px]`}></i></button>
         <aside className="flex-1 bg-[#121212] md:bg-[#121212]/95 backdrop-blur-3xl md:border-l border-white/5 p-6 md:p-7 overflow-y-auto scrollbar-hide shadow-2xl relative pointer-events-auto">
           {!renderedImage ? (
-            <AssetCarousel 
-              onSelectItem={handleAddItem} 
-              selectedId={selectedId} 
-              darkMode={true} 
-              userAssets={userAssets}
-              setUserAssets={setUserAssets}
-              onUserFileUpload={handleUserFileUpload}
-              hasBackground={!!backgroundImage}
-              placedItems={placedItems}
-            />
+            <>
+              {selectedId && placedItems.find(i => i.id === selectedId)?.textConfig ? (
+                <TextProperties 
+                  item={placedItems.find(i => i.id === selectedId)!} 
+                  onUpdate={handleUpdateText} 
+                />
+              ) : (
+                <AssetCarousel 
+                  onSelectItem={handleAddItem} 
+                  selectedId={selectedId} 
+                  darkMode={true} 
+                  userAssets={userAssets}
+                  setUserAssets={setUserAssets}
+                  onUserFileUpload={handleUserFileUpload}
+                  hasBackground={!!backgroundImage}
+                  placedItems={placedItems}
+                />
+              )}
+            </>
           ) : (
             <div className="h-full flex flex-col items-center justify-center gap-6 text-center opacity-20">
               <i className="fa-solid fa-wand-magic-sparkles text-2xl"></i>
