@@ -1,43 +1,33 @@
-# 🖼️ OveShop - Relational AI Creative Orchestration Suite
+# 🖼️ OveShop - The Photoshop of Generative AI
 
 👉 [Leer en Español](README.es.md)
 
-OveShop is a massive orchestration suite designed for absolute control over complex scenes. Through a hierarchical prompting architecture and semantic relationship engine, it enables high-fidelity image generation where every detail and object interaction is governed by your specific intent.
+OveShop redefines AI image editing, moving from the "Single-Prompt Lottery" to a paradigm of **Orchestrated Multimodal Synthesis**. It is the first creative suite where control does not reside in a global instruction, but in the granular precision of every element.
 
-![App Header Placeholder](https://via.placeholder.com/1200x400?text=OveShop+Relational+AI+Suite)
+![App Header Placeholder](https://via.placeholder.com/1200x400?text=OveShop+AI+Orchestration+Suite)
 
-## 🚀 Distinctive Pillars (What Makes Us Unique)
+## 💎 The New Paradigm: Prompt-Per-Layer
 
-### 1. Relational AI & Semantic Linkage (Linked Prompts) 🔗
-OveShop allows you to define exactly how elements interact with one another:
-- **Dynamic Relationships**: You don't just place objects; you link them with relational prompts. Example: Link a "Stone" and a "Water Stream" with the prompt *"Water flows out of the stone"*, and the AI will generate a realistic physical interaction.
-- **Massive Orchestration**: Optimized for high-density scenes. Manage **over 50 entities** simultaneously (e.g., 50 people on a stage), controlling the position, posture, and unique relationship of each one.
+In traditional design (Photoshop), you control **Pixels per Layer**. In OveShop, you control **Prompts per Layer**. This distinction transforms AI from a random generator into a professional tool for precision composition.
 
-### 2. Hierarchical Prompting Architecture (HPA) 🤖
-- **Micro-Prompting**: Every object on the canvas has its own individual prompt (e.g., "Red Lava Stone").
-- **Global Synthesis**: The engine synthesizes individual prompts, relational links, and global context into a structured request for Gemini Pro, ensuring result fidelity to your exact vision.
+### 🌟 Distinctive Pillars
 
-### 3. Semantic Materiality (Property-Encoded Ink & Text) ✍️
-Colors in OveShop are material instructions, not just flat pigments:
-- **Property-Aware Ink**: Draw strokes and assign material properties (Metal, Glow, Depth). A "neon-blue" stroke becomes a functional light source in the final render.
-- **Material Typography**: Text color defines its physical depth and materiality. You can engrave text into surfaces (e.g., brown = deep engraving) with realistic shadows and physical textures.
+#### 1. Hierarchical Orchestration (HPA) 🤖
+OveShop processes images layer-by-layer, analyzing and synthesizing multiple levels of intent:
+- **Micro-Prompting**: Every object (stone, person, tree) has its own individual prompt. You can define the material, color, and style of every actor in isolation.
+- **Semantic Relations**: You don't just place objects; you define how they interact. Through layer linking, you can instruct a relationship (e.g., *"one person jumping over another"* or *"water flowing out of a rock"*).
+- **Density Control**: Capable of orchestrating complex scenes with dozens of entities (e.g., a theatrical stage filled with actors) while maintaining the fidelity of each one.
 
-### 4. Fast Deformation & Geometric Guidance 📐
-- **AI Perspective Blueprint**: Quickly warp and adjust elements to guide the AI’s understanding of the scene's perspective and geometry, eliminating visual hallucinations.
+#### 2. Semantic Materiality (Chroma-Matter Mapping) ✍️
+Colors in OveShop are **Physical Instructions**, not just flat pigments:
+- **Property-Encoded Ink**: Drawing strokes carry material signatures (Glow, Metal, Depth). A "neon-white" stroke acts as a functional light source that illuminates the scene.
+- **Material Typography**: Text color defines its interaction with the surface. You can choose between printed, glowing, or **deeply engraved** text with realistic physical shadows and textures.
 
-## 🛠️ Getting Started
+#### 3. Geometric Guidance (Fast Deformation) 📐
+Rapid asset deformation allows for a **Deterministic Blueprint**. By manually adjusting the perspective, you eliminate AI "hallucinations" and ensure the final render respects the physics and geometry of the original photo.
 
-### Prerequisites
-- Node.js (Latest LTS)
-- A **Google Gemini API Key** ([Get it here](https://aistudio.google.com/app/apikey))
-
-### Quick Start
-1. `npm install`
-2. `npm run dev`
-3. Enter your API Key and take total control of your scene.
-
-## 📄 License
-This project is licensed under the [MIT License](./LICENSE).
+## 🚀 Why OveShop?
+Before OveShop, AI editing was an "all or nothing" process. Now, you can edit every element, every material, and every relationship independently, achieving high-fidelity results that were previously impossible with global prompts.
 
 ---
 Developed with ❤️ by [Joel Barea](https://github.com/JoelBeja2000)
