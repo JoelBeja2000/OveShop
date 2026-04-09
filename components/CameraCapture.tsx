@@ -1,6 +1,7 @@
 
 import React, { useRef, useState, useEffect } from 'react';
-import { PlacedItem, PerspectivePoints, VisualBehavior, AssetCategory } from '../src/domain/types';
+import { PlacedItem, PerspectivePoints, VisualBehavior, AssetCategory, DrawingStroke, BrushType, Point, DrawingSegment } from '../src/domain/types';
+import { DrawingElement } from './DrawingElement';
 
 interface CameraCaptureProps {
   darkMode: boolean;
@@ -16,6 +17,11 @@ interface CameraCaptureProps {
   setZoom: React.Dispatch<React.SetStateAction<number>>;
   panOffset: { x: number, y: number };
   setPanOffset: React.Dispatch<React.SetStateAction<{ x: number, y: number }>>;
+  isDrawingMode?: boolean;
+  drawingStrokes?: DrawingStroke[];
+  setDrawingStrokes?: React.Dispatch<React.SetStateAction<DrawingStroke[]>>;
+  activeBrush?: { type: BrushType, color: string, width: number };
+  onEditDrawing?: (id: string) => void;
 }
 
 function getPerspectiveMatrix(w: number, h: number, p: PerspectivePoints) {
@@ -46,12 +52,15 @@ function getPerspectiveMatrix(w: number, h: number, p: PerspectivePoints) {
 }
 
 const CameraCapture: React.FC<CameraCaptureProps> = ({
-  placedItems, setPlacedItems, selectedId, setSelectedId, externalBackground, onDropItem, onFileUpload, zoom, setZoom, panOffset, setPanOffset
+  placedItems, setPlacedItems, selectedId, setSelectedId, externalBackground, onDropItem, onFileUpload, zoom, setZoom, panOffset, setPanOffset,
+  isDrawingMode = false, drawingStrokes = [], setDrawingStrokes, activeBrush, onEditDrawing
 }) => {
   const canvasRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const [aspectRatio, setAspectRatio] = useState<number>(16 / 9);
   const [isWarpMode, setIsWarpMode] = useState(false);
+  const [currentStroke, setCurrentStroke] = useState<DrawingStroke | null>(null);
+  const isDrawingRef = useRef(false);
 
   useEffect(() => {
     if (externalBackground) {
@@ -323,18 +332,150 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({
     window.addEventListener('touchend', onEnd);
   };
 
+  // DRAWING LOGIC
+  const handleDrawingStart = (e: React.MouseEvent | React.TouchEvent) => {
+    if (!isDrawingMode || !activeBrush || !setDrawingStrokes) return;
+    e.stopPropagation();
+    
+    const isTouch = 'touches' in e;
+    const clientX = isTouch ? (e as React.TouchEvent).touches[0].clientX : (e as React.MouseEvent).clientX;
+    const clientY = isTouch ? (e as React.TouchEvent).touches[0].clientY : (e as React.MouseEvent).clientY;
+    
+    const rect = canvasRef.current!.getBoundingClientRect();
+    const x = ((clientX - rect.left) / rect.width) * 100;
+    const y = ((clientY - rect.top) / rect.height) * 100;
+    
+    isDrawingRef.current = true;
+    
+    if (activeBrush.type === 'eraser') {
+      handleEraserAction(x, y);
+    } else {
+      const newStroke: DrawingStroke = {
+        id: Math.random().toString(36).substr(2, 9),
+        segments: [{
+          points: [{ x, y }],
+          color: activeBrush.color,
+          width: activeBrush.width,
+          opacity: activeBrush.type === 'highlighter' ? 0.4 : 1,
+          type: activeBrush.type
+        }],
+        x: 0,
+        y: 0,
+        zIndex: 10
+      };
+      setCurrentStroke(newStroke);
+    }
+    
+    const onMove = (mv: MouseEvent | TouchEvent) => {
+      if (!isDrawingRef.current) return;
+      if (mv.cancelable && 'touches' in mv) mv.preventDefault();
+      
+      const mX = 'touches' in mv ? (mv as TouchEvent).touches[0].clientX : (mv as MouseEvent).clientX;
+      const mY = 'touches' in mv ? (mv as TouchEvent).touches[0].clientY : (mv as MouseEvent).clientY;
+      const curX = ((mX - rect.left) / rect.width) * 100;
+      const curY = ((mY - rect.top) / rect.height) * 100;
+      
+      if (activeBrush.type === 'eraser') {
+        handleEraserAction(curX, curY);
+      } else {
+        setCurrentStroke(prev => {
+          if (!prev) return null;
+          const segments = [...prev.segments];
+          const lastSeg = { ...segments[segments.length - 1] };
+          lastSeg.points = [...lastSeg.points, { x: curX, y: curY }];
+          segments[segments.length - 1] = lastSeg;
+          return { ...prev, segments };
+        });
+      }
+    };
+    
+    const onEnd = () => {
+      isDrawingRef.current = false;
+      window.removeEventListener('mousemove', onMove as any);
+      window.removeEventListener('mouseup', onEnd);
+      window.removeEventListener('touchmove', onMove as any);
+      window.removeEventListener('touchend', onEnd);
+      
+      setCurrentStroke(prev => {
+        if (prev && setDrawingStrokes) {
+          setDrawingStrokes(old => [...old, prev]);
+        }
+        return null;
+      });
+    };
+    
+    window.addEventListener('mousemove', onMove as any);
+    window.addEventListener('mouseup', onEnd);
+    window.addEventListener('touchmove', onMove as any, { passive: false });
+    window.addEventListener('touchend', onEnd);
+  };
+  
+  const handleEraserAction = (x: number, y: number) => {
+    if (!setDrawingStrokes || !activeBrush || !canvasRef.current) return;
+    const rect = canvasRef.current.getBoundingClientRect();
+    const eraserRadiusPct = (activeBrush.width / 2 / rect.width) * 100;
+    
+    setDrawingStrokes(prev => {
+      let changed = false;
+      const nextStrokes = prev.map(stroke => {
+        let strokeChanged = false;
+        const newSegments: DrawingSegment[] = [];
+        
+        stroke.segments.forEach(seg => {
+          let currentPoints: Point[] = [];
+          
+          seg.points.forEach(p => {
+            const dx = p.x - x;
+            const dy = p.y - y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            
+            if (dist > eraserRadiusPct) {
+              currentPoints.push(p);
+            } else {
+              strokeChanged = true;
+              changed = true;
+              if (currentPoints.length > 0) {
+                newSegments.push({ ...seg, points: currentPoints });
+                currentPoints = [];
+              }
+            }
+          });
+          
+          if (currentPoints.length > 0) {
+            newSegments.push({ ...seg, points: currentPoints });
+          }
+        });
+        
+        if (strokeChanged) {
+          return { ...stroke, segments: newSegments };
+        }
+        return stroke;
+      }).filter(s => s.segments.length > 0);
+      
+      return changed ? nextStrokes : prev;
+    });
+  };
+
   return (
     <div
       className="w-full h-full flex items-center justify-center relative select-none cursor-default overflow-hidden"
       onMouseDown={(e) => { 
-        setSelectedId(null); 
-        setIsWarpMode(false);
-        handleBackgroundPanStart(e);
+        if (isDrawingMode) {
+          handleDrawingStart(e);
+        } else {
+          setSelectedId(null); 
+          setIsWarpMode(false);
+          handleBackgroundPanStart(e);
+        }
       }}
       onTouchStart={(e) => { 
-        setSelectedId(null); 
-        setIsWarpMode(false);
-        handleBackgroundPanStart(e);
+        if (isDrawingMode) {
+          handleDrawingStart(e);
+        } else {
+          setSelectedId(null); 
+          setIsWarpMode(false);
+          handleBackgroundPanStart(e);
+        }
       }}
       onWheel={(e) => {
         if (e.ctrlKey || e.metaKey) {
@@ -400,6 +541,14 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({
         }}
       >
         {externalBackground && <img src={externalBackground} className="w-full h-full object-contain pointer-events-none" alt="" />}
+        
+        {/* DRAWING LAYER */}
+        <div className="absolute inset-0 pointer-events-none overflow-hidden">
+          {drawingStrokes.map(stroke => (
+            <DrawingElement key={stroke.id} stroke={stroke} />
+          ))}
+          {currentStroke && <DrawingElement stroke={currentStroke} />}
+        </div>
 
         {placedItems.map(item => {
           const isSelected = selectedId === item.id;
@@ -456,10 +605,19 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({
                   className="w-full h-full object-contain drop-shadow-2xl"
                   style={{
                     filter: `hue-rotate(${item.hueRotate}deg) saturate(${item.saturation}) brightness(${item.brightness})`,
-                    transform: `scaleX(${item.scaleX || 1})`
+                    transform: `scaleX(${item.scaleX || 1})`,
+                    display: (item.drawingStrokes && item.drawingStrokes.length > 0) ? 'none' : 'block'
                   }}
                   alt=""
                 />
+                
+                {item.drawingStrokes && (
+                  <div className="absolute inset-0 pointer-events-none">
+                    {item.drawingStrokes.map(stroke => (
+                      <DrawingElement key={stroke.id} stroke={stroke} />
+                    ))}
+                  </div>
+                )}
               </div>
 
               {isSelected && (
@@ -557,6 +715,22 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({
                     >
                       <i className="fa-solid fa-right-left text-[10px] md:text-[9px]"></i>
                     </button>
+
+                    {item.drawingStrokes && (
+                      <>
+                        <div className="w-px h-6 md:h-4 bg-white/10 mx-1"></div>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onEditDrawing?.(item.id);
+                          }}
+                          className="w-10 h-10 md:w-8 md:h-8 bg-alpine-sap/10 text-alpine-sap rounded-full hover:bg-alpine-sap hover:text-black transition-all flex items-center justify-center"
+                          title="Editar Dibujo"
+                        >
+                          <i className="fa-solid fa-pencil text-[10px] md:text-[9px]"></i>
+                        </button>
+                      </>
+                    )}
                   </div>
                 </>
               )}

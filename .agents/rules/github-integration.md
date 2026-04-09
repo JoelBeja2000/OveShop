@@ -1,6 +1,5 @@
 ---
-name: GitHub Board Integration
-description: Rules for syncing local bugs and status with GitHub Issues and Projects.
+trigger: always_on
 ---
 
 # 🐙 GitHub Integration Rules

@@ -5,7 +5,8 @@ export enum AssetCategory {
   OBJECT = 'Objeto',
   CHARACTER = 'Personaje',
   EFFECT = 'Efecto/VFX',
-  OTHER = 'Otros'
+  OTHER = 'Otros',
+  DRAWING = 'Dibujo'
 }
 
 export type VisualBehavior = 'strict' | 'generative';
@@ -47,4 +48,30 @@ export interface PlacedItem {
   occlusionMode?: 'overlay' | 'destroy';
   groupId?: string; // ID for grouping related items
   groupRole?: string; // specific role in the relation (e.g. "Item A", "Item B")
+  drawingStrokes?: DrawingStroke[];
+  drawingBounds?: { minX: number, minY: number, width: number, height: number };
+  colorLabels?: Record<string, string>;
+}
+
+export type BrushType = 'pencil' | 'highlighter' | 'eraser';
+
+export interface Point {
+  x: number;
+  y: number;
+}
+
+export interface DrawingSegment {
+  points: Point[];
+  color: string;
+  width: number;
+  opacity: number;
+  type: BrushType;
+}
+
+export interface DrawingStroke {
+  id: string;
+  segments: DrawingSegment[];
+  x: number;
+  y: number;
+  zIndex: number;
 }

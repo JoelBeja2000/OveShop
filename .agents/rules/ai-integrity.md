@@ -1,6 +1,5 @@
 ---
-name: AI Integrity & Branch Awareness
-description: Rules to prevent unauthorized commits and history rewriting.
+trigger: always_on
 ---
 
 # ⚜️ AI Integrity Rules

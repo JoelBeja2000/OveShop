@@ -1,6 +1,5 @@
 ---
-name: GHS Protocol
-description: Standard for maintaining project history and bug registries.
+trigger: always_on
 ---
 
 # 📜 GHS Protocol Rules
