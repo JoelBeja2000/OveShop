@@ -18,6 +18,7 @@ interface NavbarProps {
   isRendering: boolean;
   canRender: boolean;
   currentZoom: number;
+  onCreateBackground: () => void;
 }
 
 const Navbar: React.FC<NavbarProps> = ({
@@ -37,7 +38,8 @@ const Navbar: React.FC<NavbarProps> = ({
   canRedo,
   isRendering,
   canRender,
-  currentZoom
+  currentZoom,
+  onCreateBackground
 }) => {
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
 
@@ -45,7 +47,8 @@ const Navbar: React.FC<NavbarProps> = ({
     {
       label: 'Archivo',
       options: [
-        { label: 'Cargar Escena', icon: 'fa-regular fa-image', action: onLoadScene },
+        { label: 'Cargar Escena', icon: 'fa-solid fa-image', action: onLoadScene },
+        { label: 'Crear Fondo Nuevo', icon: 'fa-solid fa-plus-square', action: onCreateBackground },
         { label: 'Usar Webcam', icon: 'fa-solid fa-camera', action: onUseWebcam },
         { type: 'separator' },
         { label: 'Guardar Proyecto', icon: 'fa-solid fa-file-export', action: onSaveProject },
@@ -67,7 +70,6 @@ const Navbar: React.FC<NavbarProps> = ({
 
   return (
     <nav className="hidden md:flex h-10 w-full bg-black/40 backdrop-blur-3xl border-b border-white/5 items-center px-4 fixed top-0 left-0 right-0 z-[2000] select-none">
-      {/* LEFT: LOGO & MENUS */}
       <div className="flex items-center gap-2 mr-6 opacity-80 hover:opacity-100 transition-opacity">
         <div className="w-5 h-5 bg-alpine-sap rounded-md rotate-12 flex items-center justify-center">
           <span className="text-[10px] font-black text-black">O</span>
@@ -91,9 +93,8 @@ const Navbar: React.FC<NavbarProps> = ({
               {menu.label}
             </button>
 
-            {/* DROPDOWN */}
             {menu.options && activeMenu === menu.label && (
-              <div className="absolute top-10 left-0 min-w-[170px] bg-[#1a1a1a] backdrop-blur-3xl border border-white/10 rounded-b-xl shadow-2xl py-2 animate-fade-in-down origin-top">
+              <div className="absolute top-10 left-0 min-w-[200px] bg-[#1a1a1a] backdrop-blur-3xl border border-white/10 rounded-b-xl shadow-2xl py-2 animate-fade-in-down origin-top">
                 {menu.options.map((opt, i) => (
                   opt.type === 'separator' ? (
                     <div key={i} className="my-1 border-t border-white/5 mx-2" />
@@ -128,8 +129,11 @@ const Navbar: React.FC<NavbarProps> = ({
 
       <div className="flex-1" />
 
-      {/* RIGHT: ACTIONS */}
       <div className="flex items-center gap-4 pr-4">
+        <div className="flex items-center gap-1 bg-white/5 px-3 py-1 rounded-full border border-white/10">
+          <span className="text-[6px] font-black text-white/20 uppercase tracking-widest">Zoom</span>
+          <span className="text-[8px] font-black text-white/60 min-w-[30px] text-center">{currentZoom}%</span>
+        </div>
         <button
           onClick={onRender}
           disabled={isRendering || !canRender}

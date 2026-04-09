@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { PlacedItem, VisualBehavior, AssetCategory, AssetItem, DrawingStroke, BrushType, Point, DrawingSegment, TextConfig } from './src/domain/types';
 import { GeminiAIAdapter } from './src/infrastructure/ai/GeminiAIAdapter';
@@ -10,6 +9,7 @@ import { TextProperties } from './components/TextProperties';
 import { DrawingProperties } from './components/DrawingProperties';
 import ComparisonSlider from './components/ComparisonSlider';
 import ApiKeyModal from './components/ApiKeyModal';
+import { CanvasConfigModal } from './components/CanvasConfigModal';
 import { BrushToolbar } from './components/BrushToolbar';
 import { DrawingElement } from './components/DrawingElement';
 import Navbar from './components/Navbar';
@@ -61,6 +61,8 @@ const App: React.FC = () => {
   const [isLinkingId, setIsLinkingId] = useState<string | null>(null);
   const [userAssets, setUserAssets] = useState<ColorVariantItem[]>([]);
   const [sceneResolution, setSceneResolution] = useState<{ w: number, h: number } | null>(null);
+  const [sceneBgColor, setSceneBgColor] = useState<string>('#1a1a1a');
+  const [isTransparent, setIsTransparent] = useState<boolean>(false);
   const [canvasZoom, setCanvasZoom] = useState<number>(1.0);
   const [panOffset, setPanOffset] = useState<{ x: number, y: number }>({ x: 0, y: 0 });
   const [drawingStrokes, setDrawingStrokes] = useState<DrawingStroke[]>([]);
@@ -71,6 +73,7 @@ const App: React.FC = () => {
   const [activeBrushWidth, setActiveBrushWidth] = useState(3);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
+  const [isCanvasModalOpen, setIsCanvasModalOpen] = useState(false);
   const [historyStack, setHistoryStack] = useState<PlacedItem[][]>([]);
   const [futureStack, setFutureStack] = useState<PlacedItem[][]>([]);
 
@@ -581,6 +584,17 @@ const App: React.FC = () => {
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
   };
+  
+  const handleCreateCustomBackground = (w: number, h: number, color: string, transparent: boolean) => {
+    saveToHistory(placedItems);
+    setBackgroundImage(null); 
+    setSceneResolution({ w, h });
+    setSceneBgColor(color);
+    setIsTransparent(transparent);
+    setIsCanvasModalOpen(false);
+    setRenderedImage(null);
+    setPlacedItems([]);
+  };
 
   const handleImportProject = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -706,6 +720,13 @@ const App: React.FC = () => {
         isRendering={isRendering}
         canRender={placedItems.length > 0}
         currentZoom={Math.round(canvasZoom * 100)}
+        sceneResolution={sceneResolution}
+        setSceneResolution={setSceneResolution}
+        sceneBgColor={sceneBgColor}
+        setSceneBgColor={setSceneBgColor}
+        isTransparent={isTransparent}
+        setIsTransparent={setIsTransparent}
+        onCreateBackground={() => setIsCanvasModalOpen(true)}
       />
 
       <div className="flex-1 flex flex-col md:flex-row overflow-hidden font-sans relative md:pt-10">
@@ -829,7 +850,7 @@ const App: React.FC = () => {
                   </button>
                 )}
 
-                {backgroundImage && (
+                {(backgroundImage || sceneResolution) && (
                   <>
                     {interactionMode === 'draw' ? (
                       <div className="flex gap-2 w-full">
@@ -1266,7 +1287,7 @@ const App: React.FC = () => {
       >
         <div className="w-full h-full flex items-center justify-center p-2 md:p-10 pb-24 md:pb-10">
           <div className="w-full h-full flex items-center justify-center relative">
-            {!backgroundImage && (
+            {(!backgroundImage && !sceneResolution) && (
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-[100] animate-pulse">
                 <h2 className="text-4xl md:text-8xl font-black text-alpine-sap uppercase tracking-[0.2em] text-center drop-shadow-[0_0_40px_rgba(162,173,145,0.3)] flex flex-col gap-0 md:gap-4 leading-[0.9]">
                   <span>Carga</span>
@@ -1348,6 +1369,9 @@ const App: React.FC = () => {
                     setDrawingStrokes(deNormalizedStrokes); 
                   }
                 }}
+                sceneResolution={sceneResolution}
+                sceneBgColor={sceneBgColor}
+                isTransparent={isTransparent}
               />
 
               {/* BARRA DE HERRAMIENTAS FLOTANTE - DEBAJO DEL LIENZO */}
@@ -1517,7 +1541,7 @@ const App: React.FC = () => {
                   userAssets={userAssets}
                   setUserAssets={setUserAssets}
                   onUserFileUpload={handleUserFileUpload}
-                  hasBackground={!!backgroundImage}
+                  hasBackground={!!backgroundImage || !!sceneResolution}
                   placedItems={placedItems}
                 />
               )}
@@ -1601,6 +1625,17 @@ const App: React.FC = () => {
           </div>
         </div>
       )}
+      
+      {/* MODAL CONFIGURACIÓN LIENZO */}
+      <CanvasConfigModal
+        isOpen={isCanvasModalOpen}
+        onClose={() => setIsCanvasModalOpen(false)}
+        onConfirm={handleCreateCustomBackground}
+        initialW={sceneResolution?.w}
+        initialH={sceneResolution?.h}
+        initialColor={sceneBgColor}
+        initialTransparent={isTransparent}
+      />
     </div>
   </div>
 );

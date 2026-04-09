@@ -5,6 +5,7 @@ import { AssetCategory, AssetItem, VisualBehavior } from '../src/domain/types';
 interface AssetCarouselProps {
   onSelectItem: (id: string, name: string, image: string, x: number, y: number, hueRotate: number, saturation: number, brightness: number, description: string, visualBehavior: VisualBehavior, category: AssetCategory) => void;
   selectedId: string | null;
+  setSelectedId: (id: string | null) => void;
   darkMode: boolean;
   userAssets: ColorVariantItem[];
   setUserAssets: React.Dispatch<React.SetStateAction<ColorVariantItem[]>>;
@@ -19,12 +20,21 @@ interface ColorVariantItem extends AssetItem {
   brightness?: number;
 }
 
-const AssetCarousel: React.FC<AssetCarouselProps> = ({ onSelectItem, selectedId, darkMode, userAssets, setUserAssets, onUserFileUpload, hasBackground, placedItems }) => {
+const AssetCarousel: React.FC<AssetCarouselProps> = ({ 
+  onSelectItem, 
+  selectedId, 
+  setSelectedId, 
+  darkMode, 
+  userAssets, 
+  setUserAssets, 
+  onUserFileUpload, 
+  hasBackground, 
+  placedItems 
+}) => {
   const [expandedCategory, setExpandedCategory] = useState<AssetCategory | null>(AssetCategory.INVENTORY);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleDragStart = (e: React.DragEvent, item: ColorVariantItem) => {
-    // Prevent drag if used
     if (placedItems.some(pi => pi.itemId === item.id)) {
       e.preventDefault();
       return;
@@ -131,7 +141,6 @@ const AssetCarousel: React.FC<AssetCarouselProps> = ({ onSelectItem, selectedId,
                             : 'bg-white/[0.01] border-white/[0.03] hover:bg-white/[0.08] hover:border-white/10 cursor-pointer'
                         }`}
                       >
-                        {/* DUPLICATE BUTTON - ALWAYS ENABLED & VISIBLE */}
                         <button
                           onClick={handleDuplicate}
                           title="Duplicar Asset"
@@ -140,7 +149,6 @@ const AssetCarousel: React.FC<AssetCarouselProps> = ({ onSelectItem, selectedId,
                           <i className="fa-solid fa-clone text-[8px]"></i>
                         </button>
 
-                        {/* USED BADGE */}
                         {isUsed && (
                           <div className="absolute inset-0 flex items-center justify-center z-0">
                             <span className="px-2 py-0.5 rounded bg-black/60 text-white/40 text-[6px] font-black uppercase tracking-widest border border-white/10 backdrop-blur-sm">En Uso</span>

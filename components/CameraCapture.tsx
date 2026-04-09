@@ -24,6 +24,9 @@ interface CameraCaptureProps {
   activeBrush?: { type: BrushType, color: string, width: number };
   onEditDrawing?: (id: string) => void;
   onSaveToHistory?: () => void;
+  sceneResolution?: { w: number, h: number } | null;
+  sceneBgColor?: string;
+  isTransparent?: boolean;
 }
 
 function getPerspectiveMatrix(w: number, h: number, p: PerspectivePoints) {
@@ -56,7 +59,8 @@ function getPerspectiveMatrix(w: number, h: number, p: PerspectivePoints) {
 const CameraCapture: React.FC<CameraCaptureProps> = ({
   placedItems, setPlacedItems, selectedId, setSelectedId, externalBackground, onDropItem, onFileUpload, zoom, setZoom, panOffset, setPanOffset,
   interactionMode = 'move', onAddText, setInteractionMode,
-  drawingStrokes = [], setDrawingStrokes, activeBrush, onEditDrawing, onSaveToHistory
+  drawingStrokes = [], setDrawingStrokes, activeBrush, onEditDrawing, onSaveToHistory,
+  sceneResolution, sceneBgColor = '#ffffff', isTransparent = false
 }) => {
   const canvasRef = useRef<HTMLDivElement>(null);
   const activeDrawingSvgRef = useRef<SVGSVGElement>(null);
@@ -433,6 +437,18 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({
   // Safe checks for rendered items
   const selectedItem = useMemo(() => placedItems.find(i => i.id === selectedId), [placedItems, selectedId]);
 
+  const effectiveRatio = sceneResolution ? (sceneResolution.w / sceneResolution.h) : (aspectRatio || 1);
+
+  const transparencyGridStyle = {
+    backgroundImage: `linear-gradient(45deg, #f0f0f0 25%, transparent 25%), 
+                      linear-gradient(-45deg, #f0f0f0 25%, transparent 25%), 
+                      linear-gradient(45deg, transparent 75%, #f0f0f0 75%), 
+                      linear-gradient(-45deg, transparent 75%, #f0f0f0 75%)`,
+    backgroundSize: '20px 20px',
+    backgroundPosition: '0 0, 0 10px, 10px -10px, -10px 0px',
+    backgroundColor: '#ffffff'
+  };
+
   return (
     <div
       className="w-full h-full flex items-center justify-center relative select-none cursor-default overflow-hidden"
@@ -467,12 +483,14 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({
       <div
         ref={canvasRef}
         style={{ 
-          aspectRatio: aspectRatio,
+          aspectRatio: effectiveRatio,
           transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoom})`,
           transformOrigin: 'center center',
-          transition: interactionMode === 'draw' ? 'none' : 'transform 0.1s cubic-bezier(0.19, 1, 0.22, 1)'
+          transition: interactionMode === 'draw' ? 'none' : 'transform 0.1s cubic-bezier(0.19, 1, 0.22, 1)',
+          backgroundColor: !isTransparent ? sceneBgColor : undefined,
+          ...(isTransparent ? transparencyGridStyle : {})
         }}
-        className={`relative w-full h-full ${externalBackground ? 'bg-[#1a1a1a] shadow-2xl border border-white/5' : 'bg-transparent'} overflow-visible rounded-2xl md:rounded-[3rem] transition-all duration-700`}
+        className={`relative w-full h-full shadow-2xl border border-white/5 overflow-visible rounded-2xl md:rounded-[3rem] transition-all duration-700`}
       >
         {externalBackground && <img src={externalBackground} className="w-full h-full object-contain pointer-events-none" alt="" />}
         
