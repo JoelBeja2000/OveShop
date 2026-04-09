@@ -20,6 +20,9 @@
 | Commit | Author | Description | Screenshots | Technical Details |
 | :--- | :--- | :--- | :--- | :--- |
 | `0000000` | @author | [AI] Initializing GHS Template | - | Start of the project using Git History Standard. |
-| `93407a6` | @antigravity | [AI] Integrating Git History Standard | - | Cloned and installed GHS core files, infrastructure, and tools. Configured ChromaDB for local vector search. |
-| `43f5baa` | @antigravity | [AI] OveShop Brush Asset Integration #ai-history | - | Implemented SVG-based manual drawing system. Drawings are now re-editable assets (`PlacedItem`) in the OveShop library. Added semantic color labeling UI in the layer panel. |
-| `text-v1` | @antigravity | [AI] Implementing Text Mode and interaction modes #ai-history | - | Added `TextConfig` and `TextProperties`. Refactored `isDrawingMode` to `interactionMode`. Integrated system font support and property editing sidebar. |
+| `93407a6` | @antigravity | [AI] Integrating Git History Standard | - | Cloned and installed GHS core files, infrastructure, and tools. |
+| `43f5baa` | @antigravity | [AI] OveShop Brush Asset Integration #ai-history | - | Implemented SVG-based manual drawing system. |
+| `e29252c` | @antigravity | [AI] Modern Navbar and Undo/Redo #ai-history | - | Integrated Photoshop-style navbar and full state history system. |
+| `e2027b5` | @antigravity | [AI] Responsive Scaling and Layer Fixes #ai-history | - | Migrated to relative coordinates and fixed layer selection logic. |
+| `05e0983` | @antigravity | [AI] Text Mode Implementation #ai-history | - | Added `TextProperties` and system font support. |
+| `pending` | @antigravity | [AI] Drawing UI Modernization and Color Glossary #ai-history | - | Cleaned up BrushToolbar and moved drawing properties to sidebar. Added semantic labels for drawing colors. |

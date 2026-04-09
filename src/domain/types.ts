@@ -19,6 +19,8 @@ export interface TextConfig {
   italic: boolean;
   underline: boolean;
   align: 'left' | 'center' | 'right';
+  isRichText?: boolean;
+  richText?: string;
 }
 
 export type VisualBehavior = 'strict' | 'generative';

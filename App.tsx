@@ -7,6 +7,7 @@ import AssetCarousel from './components/AssetCarousel';
 import CameraCapture from './components/CameraCapture';
 import WebcamCapture from './components/WebcamCapture';
 import { TextProperties } from './components/TextProperties';
+import { DrawingProperties } from './components/DrawingProperties';
 import ComparisonSlider from './components/ComparisonSlider';
 import ApiKeyModal from './components/ApiKeyModal';
 import { BrushToolbar } from './components/BrushToolbar';
@@ -44,6 +45,9 @@ const App: React.FC = () => {
   const [imageRatio, setImageRatio] = useState<number>(1);
   const [isLeftBarOpen, setIsLeftBarOpen] = useState(true);
   const [isRightBarOpen, setIsRightBarOpen] = useState(true);
+  const [drawingColorLabels, setDrawingColorLabels] = useState<Record<string, string>>({});
+  const [customPalette, setCustomPalette] = useState<string[]>(JSON.parse(localStorage.getItem('oveshop_custom_palette_v2') || '[]'));
+
   const [isRendering, setIsRendering] = useState(false);
   const [renderedImage, setRenderedImage] = useState<string | null>(null);
   const [showComparison, setShowComparison] = useState(false);
@@ -69,6 +73,20 @@ const App: React.FC = () => {
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
   const [historyStack, setHistoryStack] = useState<PlacedItem[][]>([]);
   const [futureStack, setFutureStack] = useState<PlacedItem[][]>([]);
+
+  const usedDrawingColors = React.useMemo(() => {
+    const uniqueColors = new Set<string>();
+    drawingStrokes.forEach(stroke => {
+      stroke.segments.forEach(segment => {
+        uniqueColors.add(segment.color.toLowerCase());
+      });
+    });
+    // Add current brush color unless it's eraser
+    if (activeBrushType !== 'eraser') {
+      uniqueColors.add(activeBrushColor.toLowerCase());
+    }
+    return Array.from(uniqueColors);
+  }, [drawingStrokes, activeBrushColor, activeBrushType]);
   const projectInputRef = useRef<HTMLInputElement>(null);
 
   const saveToHistory = (currentItems: PlacedItem[]) => {
@@ -144,6 +162,129 @@ const App: React.FC = () => {
     }
   };
 
+  const handleAddCustomColor = (color: string) => {
+    const alpineColors = ['#A2AD91', '#ffffff', '#FFC5C5', '#C5D9FF', '#FFE0C5', '#000000'];
+    const normalized = color.toLowerCase();
+    
+    setCustomPalette(prev => {
+      if (alpineColors.map(c => c.toLowerCase()).includes(normalized) || prev.map(c => c.toLowerCase()).includes(normalized)) {
+        return prev;
+      }
+      const next = [...prev, color];
+      localStorage.setItem('oveshop_custom_palette_v2', JSON.stringify(next));
+      return next;
+    });
+  };
+
+  const handleFinishDrawing = () => {
+    if (interactionMode !== 'draw') return;
+    if (drawingStrokes.length > 0) {
+      setPlacedItems(prev => {
+        const item = prev.find(i => i.id === editingItemId);
+        let globalPoints: Point[] = [];
+        let strokesInGlobalSpace: DrawingStroke[] = [];
+
+        if (item) {
+          strokesInGlobalSpace = drawingStrokes.map(s => ({
+            ...s,
+            segments: s.segments.map(seg => ({
+              ...seg,
+              points: seg.points.map(p => {
+                const gx = item.x - (item.drawingBounds?.width || 0)/2 + (p.x / 100) * (item.drawingBounds?.width || 0);
+                const gy = item.y - (item.drawingBounds?.height || 0)/2 + (p.y / 100) * (item.drawingBounds?.height || 0);
+                globalPoints.push({ x: gx, y: gy });
+                return { x: gx, y: gy };
+              })
+            }))
+          }));
+        } else {
+          strokesInGlobalSpace = drawingStrokes;
+          drawingStrokes.forEach(s => s.segments.forEach(seg => seg.points.forEach(p => globalPoints.push(p))));
+        }
+
+        if (globalPoints.length === 0) return prev;
+        let minX = 100, minY = 100, maxX = 0, maxY = 0;
+        globalPoints.forEach(p => {
+          minX = Math.min(minX, p.x);
+          minY = Math.min(minY, p.y);
+          maxX = Math.max(maxX, p.x);
+          maxY = Math.max(maxY, p.y);
+        });
+
+        const w = Math.max(2, maxX - minX);
+        const h = Math.max(2, maxY - minY);
+        const cx = minX + w / 2;
+        const cy = minY + h / 2;
+
+        // Calculate a scale factor to keep stroke width consistent visually.
+        // If the box expands, the local coordinates span more physical space,
+        // so we must decrease the numerical width to match.
+        const wOld = item?.drawingBounds?.width || 100;
+        const scaleFactor = wOld / w;
+
+        // 3. Normalize all strokes to new 0-100 local space
+        const normalized = strokesInGlobalSpace.map(s => ({
+          ...s,
+          segments: s.segments.map(seg => ({
+            ...seg,
+            points: seg.points.map(p => ({
+              x: ((p.x - minX) / w) * 100,
+              y: ((p.y - minY) / h) * 100
+            })),
+            width: seg.width * scaleFactor
+          }))
+        }));
+
+        if (item) {
+          return prev.map(i => i.id === editingItemId ? {
+            ...i,
+            x: cx, y: cy,
+            drawingBounds: { minX, minY, width: w, height: h },
+            drawingStrokes: normalized,
+            aspectRatio: w / h
+          } : i);
+        } else {
+          const newItem: PlacedItem = {
+            id: `draw_${Date.now()}`,
+            itemId: 'system-drawing',
+            name: 'Dibujo Personalizado',
+            image: '',
+            x: cx, y: cy,
+            hueRotate: 0, saturation: 1, brightness: 1,
+            scale: 1, rotation: 1,
+            description: 'Dibujo creado manualmente',
+            visualBehavior: 'generative',
+            drawingStrokes: normalized,
+            drawingBounds: { minX, minY, width: w, height: h },
+            aspectRatio: w / h,
+            colorLabels: drawingColorLabels
+          };
+          return [...prev, newItem];
+        }
+      });
+    }
+    setInteractionMode('move');
+    setEditingItemId(null);
+    setDrawingStrokes([]);
+    setSelectedId(null);
+  };
+
+  const handleExitDrawing = () => {
+    setDrawingStrokes([]);
+    setDrawingColorLabels({});
+    setEditingItemId(null);
+    setInteractionMode('move');
+  };
+
+  const handleToggleDrawMode = () => {
+    if (interactionMode === 'draw') {
+      handleFinishDrawing();
+    } else {
+      handleSelectElement(selectedId);
+      if (interactionMode !== 'draw') setInteractionMode('draw');
+    }
+  };
+
   const moveLayer = (id: string, direction: 'up' | 'down', isBlock: boolean = false) => {
     saveToHistory(placedItems);
     setPlacedItems(prev => {
@@ -203,11 +344,41 @@ const App: React.FC = () => {
       return flattened;
     });
   };
-
+  
+  const handleSelectElement = (id: string | null) => {
+    setSelectedId(id);
+    if (id) {
+      const item = placedItems.find(i => i.id === id);
+      if (item?.drawingStrokes && item.drawingBounds) {
+        setInteractionMode('move');
+        setEditingItemId(id);
+        if (item.colorLabels) setDrawingColorLabels(item.colorLabels);
+        
+        const bounds = item.drawingBounds;
+        setDrawingStrokes(item.drawingStrokes);
+      } else if (item?.textConfig) {
+        setInteractionMode('text');
+        setEditingItemId(id);
+      } else {
+        if (interactionMode !== 'move') {
+          setInteractionMode('move');
+          setEditingItemId(null);
+          setDrawingStrokes([]);
+        }
+      }
+    } else {
+      if (editingItemId) {
+        setInteractionMode('move');
+        setEditingItemId(null);
+        setDrawingStrokes([]);
+      }
+    }
+  };
+  const generateId = () => `id_${Date.now().toString(36)}_${Math.random().toString(36).substr(2, 5)}`;
 
   const handleAddText = (x: number, y: number) => {
     saveToHistory(placedItems);
-    const newId = Math.random().toString(36).substr(2, 9);
+    const newId = generateId();
     const newItem: PlacedItem = {
       id: newId,
       itemId: 'system-text',
@@ -220,6 +391,7 @@ const App: React.FC = () => {
       rotation: 0,
       image: '', 
       visualBehavior: 'strict',
+      perspective: { tl: { x: 0, y: 0 }, tr: { x: 0, y: 0 }, bl: { x: 0, y: 0 }, br: { x: 0, y: 0 } },
       textConfig: {
         text: 'Escribe aquí...',
         fontSize: 32,
@@ -228,7 +400,9 @@ const App: React.FC = () => {
         fontWeight: '900',
         italic: false,
         underline: false,
-        align: 'center'
+        align: 'center',
+        isRichText: false,
+        richText: ''
       }
     };
     setPlacedItems(prev => [...prev, newItem]);
@@ -244,25 +418,28 @@ const App: React.FC = () => {
     const img = new Image();
     img.onload = () => {
       const ratio = img.width / img.height;
-      const newId = Math.random().toString(36).substr(2, 9);
-      setPlacedItems(prev => [...prev, {
-        id: newId,
-        itemId,
-        name,
-        description,
-        image,
-        x,
-        y,
-        scale: 1,
-        aspectRatio: ratio,
-        rotation: 0,
-        hueRotate: h,
-        saturation: s,
-        brightness: b,
-        visualBehavior,
-        occlusionMode: (category === AssetCategory.BACKGROUND || category === AssetCategory.EFFECT) ? 'destroy' : 'overlay',
-        perspective: { tl: { x: 0, y: 0 }, tr: { x: 0, y: 0 }, bl: { x: 0, y: 0 }, br: { x: 0, y: 0 } }
-      }]);
+      const newId = generateId();
+      setPlacedItems(prev => {
+        const next = [...prev, {
+          id: newId,
+          itemId,
+          name,
+          description,
+          image,
+          x,
+          y,
+          scale: 1,
+          aspectRatio: ratio,
+          rotation: 0,
+          hueRotate: h,
+          saturation: s,
+          brightness: b,
+          visualBehavior,
+          occlusionMode: (category === AssetCategory.BACKGROUND || category === AssetCategory.EFFECT) ? 'destroy' : 'overlay',
+          perspective: { tl: { x: 0, y: 0 }, tr: { x: 0, y: 0 }, bl: { x: 0, y: 0 }, br: { x: 0, y: 0 } }
+        }];
+        return next;
+      });
       setSelectedId(newId);
       if (window.innerWidth < 768) setActiveMobileTab('scene');
     };
@@ -272,6 +449,12 @@ const App: React.FC = () => {
   const handleUpdateText = (id: string, config: Partial<TextConfig>) => {
     setPlacedItems(prev => prev.map(item => 
       item.id === id ? { ...item, textConfig: { ...item.textConfig!, ...config } } : item
+    ));
+  };
+
+  const handleUpdateItem = (id: string, updates: Partial<PlacedItem>) => {
+    setPlacedItems(prev => prev.map(item => 
+      item.id === id ? { ...item, ...updates } : item
     ));
   };
 
@@ -309,7 +492,7 @@ const App: React.FC = () => {
       const reader = new FileReader();
       reader.onload = (event) => {
         const dataUrl = event.target?.result as string;
-        const assetId = `user_asset_${Math.random().toString(36).substr(2, 9)}`;
+          const assetId = `user_asset_${generateId()}`;
         const newAsset: ColorVariantItem = {
           id: assetId,
           name: file.name.split('.')[0],
@@ -648,114 +831,32 @@ const App: React.FC = () => {
 
                 {backgroundImage && (
                   <>
-                    <button
-                      onClick={() => {
-                        if (interactionMode === 'draw') {
-                          // FINISH DRAWING
-                          if (drawingStrokes.length > 0) {
-                            let minX = 100, minY = 100, maxX = 0, maxY = 0;
-                            drawingStrokes.forEach(s => s.segments.forEach(seg => seg.points.forEach(p => {
-                              if (p.x < minX) minX = p.x;
-                              if (p.y < minY) minY = p.y;
-                              if (p.x > maxX) maxX = p.x;
-                              if (p.y > maxY) maxY = p.y;
-                            })));
-                            
-                            const centerX = (minX + maxX) / 2;
-                            const centerY = (minY + maxY) / 2;
-                            const width = Math.max(5, maxX - minX);
-                            const height = Math.max(5, maxY - minY);
-                            
-                            const normalizedStrokes = drawingStrokes.map(stroke => ({
-                              ...stroke,
-                              segments: stroke.segments.map(seg => ({
-                                ...seg,
-                                points: seg.points.map(p => ({
-                                  x: ((p.x - minX) / width) * 100,
-                                  y: ((p.y - minY) / height) * 100
-                                }))
-                              }))
-                            }));
-
-                            // GENERATE SVG PREVIEW
-                            const svgPaths = normalizedStrokes.map(stroke => 
-                              stroke.segments.map(seg => {
-                                const pts = seg.points;
-                                if (pts.length === 0) return '';
-                                let d = `M ${pts[0].x} ${pts[0].y}`;
-                                for (let i = 1; i < pts.length - 1; i++) {
-                                  const mid = { x: (pts[i].x + pts[i+1].x)/2, y: (pts[i].y + pts[i+1].y)/2 };
-                                  d += ` Q ${pts[i].x} ${pts[i].y} ${mid.x} ${mid.y}`;
-                                }
-                                if (pts.length > 1) d += ` L ${pts[pts.length-1].x} ${pts[pts.length-1].y}`;
-                                return `<path d="${d}" fill="none" stroke="${seg.color}" stroke-width="${seg.width}" stroke-linecap="round" stroke-linejoin="round" opacity="${seg.opacity}" />`;
-                              }).join('')
-                            ).join('');
-                            
-                            const svgMarkup = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">${svgPaths}</svg>`;
-                            const drawingPreview = `data:image/svg+xml;base64,${btoa(svgMarkup)}`;
-
-                            if (editingItemId) {
-                              setPlacedItems(prev => prev.map(item => 
-                                item.id === editingItemId ? { 
-                                  ...item, 
-                                  image: drawingPreview,
-                                  x: centerX,
-                                  y: centerY,
-                                  aspectRatio: width / height,
-                                  drawingStrokes: normalizedStrokes,
-                                  drawingBounds: { minX, minY, width, height }
-                                } : item
-                              ));
-                            } else {
-                              const newId = Math.random().toString(36).substr(2, 9);
-                              const drawingName = 'Dibujo ' + (placedItems.filter(i => i.drawingStrokes).length + 1);
-                              
-                              const newAsset: ColorVariantItem = {
-                                id: 'asset_' + newId,
-                                name: drawingName,
-                                category: AssetCategory.DRAWING,
-                                image: drawingPreview,
-                                description: 'Trazo manual',
-                                visualBehavior: 'strict'
-                              };
-                              setUserAssets(prevAssets => [...prevAssets, newAsset]);
-
-                              setPlacedItems(prev => [...prev, {
-                                id: newId,
-                                itemId: newAsset.id,
-                                name: drawingName,
-                                description: 'Trazo manual',
-                                image: newAsset.image,
-                                x: centerX,
-                                y: centerY,
-                                scale: 1,
-                                aspectRatio: width / height,
-                                rotation: 0,
-                                visualBehavior: 'strict',
-                                drawingStrokes: normalizedStrokes,
-                                drawingBounds: { minX, minY, width, height },
-                                perspective: { tl: { x: 0, y: 0 }, tr: { x: 0, y: 0 }, bl: { x: 0, y: 0 }, br: { x: 0, y: 0 } }
-                              }]);
-                              setSelectedId(newId);
-                            }
-                          }
-                          setDrawingStrokes([]);
-                          setEditingItemId(null);
-                          setInteractionMode('move');
-                        } else {
-                          setInteractionMode('draw');
-                          setEditingItemId(null);
-                          setDrawingStrokes([]);
-                        }
-                      }}
-                      className={`w-full h-12 rounded-xl border border-white/10 font-black text-[9px] uppercase tracking-[0.2em] flex items-center justify-center gap-2 transition-all shadow-lg ${
-                        interactionMode === 'draw' ? 'bg-white text-black scale-105' : 'bg-white/5 text-white/40 hover:bg-white/10 hover:text-white'
-                      }`}
-                    >
-                      <i className="fa-solid fa-paintbrush"></i>
-                      <span>{interactionMode === 'draw' ? 'Finalizar Dibujo' : 'Modo Dibujo'}</span>
-                    </button>
+                    {interactionMode === 'draw' ? (
+                      <div className="flex gap-2 w-full">
+                        <button
+                          onClick={handleFinishDrawing}
+                          className="flex-1 h-12 rounded-xl bg-white text-black font-black text-[9px] uppercase tracking-[0.2em] flex items-center justify-center gap-2 transition-all shadow-lg hover:scale-[1.02] active:scale-95"
+                        >
+                          <i className="fa-solid fa-check"></i>
+                          <span>Finalizar</span>
+                        </button>
+                        <button
+                          onClick={handleExitDrawing}
+                          className="flex-1 h-12 rounded-xl bg-white/5 border border-white/10 text-white/40 font-black text-[9px] uppercase tracking-[0.2em] flex items-center justify-center gap-2 transition-all hover:bg-white/10 hover:text-white hover:scale-[1.02] active:scale-95"
+                        >
+                          <i className="fa-solid fa-xmark"></i>
+                          <span>Salir Modo</span>
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={handleToggleDrawMode}
+                        className="w-full h-12 rounded-xl border border-white/10 bg-white/5 text-white/40 hover:bg-white/10 hover:text-white font-black text-[9px] uppercase tracking-[0.2em] flex items-center justify-center gap-2 transition-all shadow-lg"
+                      >
+                        <i className="fa-solid fa-paintbrush"></i>
+                        <span>Modo Dibujo</span>
+                      </button>
+                    )}
 
                     <button
                       onClick={() => setInteractionMode(interactionMode === 'text' ? 'move' : 'text')}
@@ -813,7 +914,7 @@ const App: React.FC = () => {
                               const fromItem = placedItems.find(i => i.id === isLinkingId);
                               const targetItem = item;
 
-                              let newGroupId = fromItem?.groupId || targetItem.groupId || Math.random().toString(36).substr(2, 9);
+                              let newGroupId = fromItem?.groupId || targetItem.groupId || generateId();
 
                               // If both already have DIFFERENT groups, we MERGE the target's group into fromItem's group
                               const sourceGroupId = fromItem?.groupId;
@@ -1204,7 +1305,7 @@ const App: React.FC = () => {
                 setPlacedItems={setPlacedItems}
                 onSaveToHistory={() => saveToHistory(placedItems)}
                 selectedId={selectedId}
-                setSelectedId={setSelectedId}
+                setSelectedId={handleSelectElement}
                 externalBackground={backgroundImage}
                 onDropItem={handleAddItem}
                 onFileUpload={handleUserFileUpload}
@@ -1373,11 +1474,45 @@ const App: React.FC = () => {
                 <TextProperties 
                   item={placedItems.find(i => i.id === selectedId)!} 
                   onUpdate={handleUpdateText} 
+                  onUpdateItem={handleUpdateItem}
+                  customPalette={customPalette}
+                  onAddCustomColor={handleAddCustomColor}
+                />
+              ) : (interactionMode === 'draw' || (selectedId && placedItems.find(i => i.id === selectedId)?.drawingStrokes)) ? (
+                <DrawingProperties
+                  brushType={activeBrushType}
+                  setBrushType={(type) => {
+                    setActiveBrushType(type);
+                    setInteractionMode('draw');
+                  }}
+                  brushColor={activeBrushColor}
+                  setBrushColor={(color) => {
+                    setActiveBrushColor(color);
+                    setInteractionMode('draw');
+                    if (activeBrushType === 'eraser' || !activeBrushType) {
+                      setActiveBrushType('pencil');
+                    }
+                  }}
+                  brushWidth={activeBrushWidth}
+                  setBrushWidth={setActiveBrushWidth}
+                  onClearAll={() => {
+                    if (window.confirm('¿Estás seguro de que quieres borrar todos los dibujos?')) {
+                      setDrawingStrokes([]);
+                    }
+                  }}
+                  colorLabels={drawingColorLabels}
+                  onUpdateLabels={setDrawingColorLabels}
+                  usedColors={usedDrawingColors}
+                  customPalette={customPalette}
+                  onAddCustomColor={handleAddCustomColor}
+                  onFinish={handleFinishDrawing}
+                  onExit={handleExitDrawing}
                 />
               ) : (
                 <AssetCarousel 
                   onSelectItem={handleAddItem} 
                   selectedId={selectedId} 
+                  setSelectedId={handleSelectElement}
                   darkMode={true} 
                   userAssets={userAssets}
                   setUserAssets={setUserAssets}
@@ -1397,23 +1532,7 @@ const App: React.FC = () => {
       </div>
       
       {/* Brush Toolbar Overlay when drawing mode is active */}
-      {isDrawingMode && !renderedImage && (
-        <div className="fixed top-24 right-6 md:right-80 z-[1000] mr-4 animate-fade-in-right">
-          <BrushToolbar
-            brushType={activeBrushType}
-            setBrushType={setActiveBrushType}
-            brushColor={activeBrushColor}
-            setBrushColor={setActiveBrushColor}
-            brushWidth={activeBrushWidth}
-            setBrushWidth={setActiveBrushWidth}
-            onClearAll={() => {
-              if (window.confirm('¿Estás seguro de que quieres borrar todos los dibujos?')) {
-                setDrawingStrokes([]);
-              }
-            }}
-          />
-        </div>
-      )}
+      {/* Legacy Brush Toolbar removed in favor of Sidebar properties */}
 
       {/* NAVEGACIÓN INFERIOR (MÓVIL) */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-black/90 backdrop-blur-3xl border-t border-white/5 z-[600] flex items-center justify-around px-4">
