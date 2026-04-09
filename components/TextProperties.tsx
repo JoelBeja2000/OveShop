@@ -7,13 +7,23 @@ interface TextPropertiesProps {
   onUpdateItem: (id: string, updates: Partial<PlacedItem>) => void;
   customPalette?: string[];
   onAddCustomColor?: (color: string) => void;
+  onRemoveCustomColor?: (color: string) => void;
 }
 
-export const TextProperties: React.FC<TextPropertiesProps> = ({ item, onUpdate, onUpdateItem, customPalette = [], onAddCustomColor }) => {
+export const TextProperties: React.FC<TextPropertiesProps> = ({ 
+  item, 
+  onUpdate, 
+  onUpdateItem, 
+  customPalette = [], 
+  onAddCustomColor,
+  onRemoveCustomColor
+}) => {
   if (!item.textConfig) return null;
 
   const config = item.textConfig;
   const editorRef = React.useRef<HTMLDivElement>(null);
+  const [isDeleteMode, setIsDeleteMode] = React.useState(false);
+  const [pickerKey, setPickerKey] = React.useState(0);
 
   // Helper to normalize colors (handles hex and rgb)
   const normalizeColor = (c: string) => {
@@ -76,6 +86,8 @@ export const TextProperties: React.FC<TextPropertiesProps> = ({ item, onUpdate, 
       colorLabels: { ...currentLabels, [color]: label }
     });
   };
+
+  const alpineColors = ['#A2AD91', '#ffffff', '#FFC5C5', '#C5D9FF', '#FFE0C5', '#000000'];
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -148,40 +160,92 @@ export const TextProperties: React.FC<TextPropertiesProps> = ({ item, onUpdate, 
             />
           </div>
           <div className="space-y-3 mt-1">
-            <label className="text-[8px] font-black uppercase tracking-[0.2em] text-white/30 ml-1">Paleta de Colores (incremental)</label>
+            <div className="flex justify-between items-center px-1">
+              <label className="text-[8px] font-black uppercase tracking-[0.2em] text-white/30">Paleta de Colores</label>
+              {isDeleteMode && (
+                <span className="text-[7px] font-black uppercase tracking-widest text-red-400 animate-pulse">Modo Eliminar</span>
+              )}
+            </div>
             <div className="grid grid-cols-6 gap-2">
-              {['#A2AD91', '#ffffff', '#FFC5C5', '#C5D9FF', '#FFE0C5', '#000000', ...customPalette].map((color) => (
+              {/* Default Colors */}
+              {alpineColors.map((color) => (
                 <button
                   key={color}
                   onClick={() => {
-                    onUpdate(item.id, { color });
-                    applyColor(color);
+                    if (!isDeleteMode) {
+                      onUpdate(item.id, { color });
+                      applyColor(color);
+                    }
                   }}
+                  disabled={isDeleteMode}
                   className={`aspect-square rounded-full border-2 transition-all hover:scale-110 ${
                     normalizeColor(config.color) === normalizeColor(color) ? 'border-white scale-110 shadow-lg shadow-white/10' : 'border-transparent'
-                  }`}
+                  } ${isDeleteMode ? 'opacity-20 cursor-not-allowed grayscale' : ''}`}
                   style={{ backgroundColor: color }}
                 />
               ))}
+
+              {/* Custom Colors */}
+              {customPalette.map((color) => (
+                <button
+                  key={color}
+                  onClick={() => {
+                    if (isDeleteMode) {
+                      onRemoveCustomColor && onRemoveCustomColor(color);
+                    } else {
+                      onUpdate(item.id, { color });
+                      applyColor(color);
+                    }
+                  }}
+                  className={`relative aspect-square rounded-full border-2 transition-all hover:scale-110 flex items-center justify-center ${
+                    normalizeColor(config.color) === normalizeColor(color) ? 'border-white scale-110 shadow-lg shadow-white/10' : 'border-transparent'
+                  } ${isDeleteMode ? 'ring-2 ring-red-500/50 ring-offset-2 ring-offset-[#121212] animate-pulse' : ''}`}
+                  style={{ backgroundColor: color }}
+                >
+                  {isDeleteMode && (
+                    <div className="absolute inset-0 bg-red-500/20 rounded-full flex items-center justify-center">
+                      <i className="fa-solid fa-xmark text-[8px] text-white drop-shadow-md"></i>
+                    </div>
+                  )}
+                </button>
+              ))}
+
+              {/* Controls - Same size as colors */}
               <div className="relative aspect-square">
                 <input
+                  key={pickerKey}
                   type="color"
                   value={config.color}
                   onChange={(e) => {
                     const newColor = e.target.value;
                     onUpdate(item.id, { color: newColor });
                     applyColor(newColor);
+                    if (onAddCustomColor) onAddCustomColor(newColor);
+                    setPickerKey(prev => prev + 1);
+                    e.target.blur();
                   }}
                   className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                 />
                 <button 
-                  onClick={() => onAddCustomColor && onAddCustomColor(config.color)}
-                  className="w-full h-full rounded-full border-2 border-white/10 flex items-center justify-center bg-gradient-to-br from-white/10 to-transparent hover:border-alpine-sap/30 transition-colors group"
-                  title="Añadir color actual a la paleta"
+                  disabled={isDeleteMode}
+                  className={`w-full h-full rounded-full border-2 border-white/10 flex items-center justify-center bg-gradient-to-br from-white/10 to-transparent transition-colors group ${isDeleteMode ? 'opacity-20 cursor-not-allowed' : 'hover:border-alpine-sap/30'}`}
+                  title="Añadir color"
                 >
                   <i className="fa-solid fa-plus text-[8px] text-white/20 group-hover:text-alpine-sap transition-colors"></i>
                 </button>
               </div>
+
+              <button
+                onClick={() => setIsDeleteMode(!isDeleteMode)}
+                className={`aspect-square rounded-full border-2 flex items-center justify-center transition-all ${
+                  isDeleteMode 
+                  ? 'bg-red-500 border-red-500 text-white shadow-lg shadow-red-500/20 scale-110' 
+                  : 'bg-white/5 border-white/10 text-white/20 hover:border-red-500/30 hover:text-red-400'
+                }`}
+                title={isDeleteMode ? 'Salir de modo eliminar' : 'Modo eliminar'}
+              >
+                <i className={`fa-solid ${isDeleteMode ? 'fa-check' : 'fa-trash-can'} text-[8px]`}></i>
+              </button>
             </div>
           </div>
         </div>

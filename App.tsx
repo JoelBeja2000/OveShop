@@ -170,10 +170,23 @@ const App: React.FC = () => {
     const normalized = color.toLowerCase();
     
     setCustomPalette(prev => {
-      if (alpineColors.map(c => c.toLowerCase()).includes(normalized) || prev.map(c => c.toLowerCase()).includes(normalized)) {
+      // Ignore if it's one of the basic alpine colors
+      if (alpineColors.map(c => c.toLowerCase()).includes(normalized)) {
         return prev;
       }
-      const next = [...prev, color];
+      
+      // Move to front if already exists, otherwise add to front
+      const filtered = prev.filter(c => c.toLowerCase() !== normalized);
+      const next = [color, ...filtered].slice(0, 24); // Limit to 24 colors
+      
+      localStorage.setItem('oveshop_custom_palette_v2', JSON.stringify(next));
+      return next;
+    });
+  };
+
+  const handleRemoveCustomColor = (color: string) => {
+    setCustomPalette(prev => {
+      const next = prev.filter(c => c.toLowerCase() !== color.toLowerCase());
       localStorage.setItem('oveshop_custom_palette_v2', JSON.stringify(next));
       return next;
     });
@@ -1501,6 +1514,7 @@ const App: React.FC = () => {
                   onUpdateItem={handleUpdateItem}
                   customPalette={customPalette}
                   onAddCustomColor={handleAddCustomColor}
+                  onRemoveCustomColor={handleRemoveCustomColor}
                 />
               ) : (interactionMode === 'draw' || (selectedId && placedItems.find(i => i.id === selectedId)?.drawingStrokes)) ? (
                 <DrawingProperties
@@ -1529,6 +1543,7 @@ const App: React.FC = () => {
                   usedColors={usedDrawingColors}
                   customPalette={customPalette}
                   onAddCustomColor={handleAddCustomColor}
+                  onRemoveCustomColor={handleRemoveCustomColor}
                   onFinish={handleFinishDrawing}
                   onExit={handleExitDrawing}
                 />

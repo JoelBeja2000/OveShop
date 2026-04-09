@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrushType, PlacedItem } from '../src/domain/types';
+import { BrushType } from '../src/domain/types';
 
 interface DrawingPropertiesProps {
   brushType: BrushType;
@@ -14,6 +14,7 @@ interface DrawingPropertiesProps {
   usedColors: string[];
   customPalette?: string[];
   onAddCustomColor?: (color: string) => void;
+  onRemoveCustomColor?: (color: string) => void;
   onFinish?: () => void;
   onExit?: () => void;
 }
@@ -31,9 +32,13 @@ export const DrawingProperties: React.FC<DrawingPropertiesProps> = ({
   usedColors,
   customPalette = [],
   onAddCustomColor,
+  onRemoveCustomColor,
   onFinish,
   onExit
 }) => {
+  const [isDeleteMode, setIsDeleteMode] = React.useState(false);
+  const [pickerKey, setPickerKey] = React.useState(0);
+
   const alpineColors = [
     '#A2AD91', // Alpine Sap (Green)
     '#ffffff', // White
@@ -107,33 +112,86 @@ export const DrawingProperties: React.FC<DrawingPropertiesProps> = ({
         {/* PALETA DE COLORES */}
         {brushType !== 'eraser' && (
           <div className="space-y-3">
-            <label className="text-[8px] font-black uppercase tracking-[0.2em] text-white/30 ml-1">Color de Pincel</label>
+            <div className="flex justify-between items-center px-1">
+              <label className="text-[8px] font-black uppercase tracking-[0.2em] text-white/30">Color de Pincel</label>
+              {isDeleteMode && (
+                <span className="text-[7px] font-black uppercase tracking-widest text-red-400 animate-pulse">Modo Eliminar Activo</span>
+              )}
+            </div>
+            
             <div className="grid grid-cols-6 gap-2">
-              {[...alpineColors, ...customPalette].map((color) => (
+              {/* Alpine Colors */}
+              {alpineColors.map((color) => (
                 <button
                   key={color}
-                  onClick={() => setBrushColor(color)}
+                  onClick={() => !isDeleteMode && setBrushColor(color)}
+                  disabled={isDeleteMode}
                   className={`aspect-square rounded-full border-2 transition-all hover:scale-110 ${
                     brushColor.toLowerCase() === color.toLowerCase() ? 'border-white scale-110 shadow-lg shadow-white/10' : 'border-transparent'
-                  }`}
+                  } ${isDeleteMode ? 'opacity-20 cursor-not-allowed grayscale' : ''}`}
                   style={{ backgroundColor: color }}
                 />
               ))}
+
+              {/* Custom Colors */}
+              {customPalette.map((color) => (
+                <button
+                  key={color}
+                  onClick={() => {
+                    if (isDeleteMode) {
+                      onRemoveCustomColor && onRemoveCustomColor(color);
+                    } else {
+                      setBrushColor(color);
+                    }
+                  }}
+                  className={`relative aspect-square rounded-full border-2 transition-all hover:scale-110 flex items-center justify-center ${
+                    brushColor.toLowerCase() === color.toLowerCase() ? 'border-white scale-110 shadow-lg shadow-white/10' : 'border-transparent'
+                  } ${isDeleteMode ? 'ring-2 ring-red-500/50 ring-offset-2 ring-offset-[#121212] animate-pulse' : ''}`}
+                  style={{ backgroundColor: color }}
+                >
+                  {isDeleteMode && (
+                    <div className="absolute inset-0 bg-red-500/20 rounded-full flex items-center justify-center">
+                      <i className="fa-solid fa-xmark text-[8px] text-white drop-shadow-md"></i>
+                    </div>
+                  )}
+                </button>
+              ))}
+
+              {/* Controles de Paleta - Each as a slot in the grid to match size */}
               <div className="relative aspect-square">
                 <input
+                  key={pickerKey}
                   type="color"
                   value={brushColor}
-                  onChange={(e) => setBrushColor(e.target.value)}
+                  onChange={(e) => {
+                    const newColor = e.target.value;
+                    setBrushColor(newColor);
+                    if (onAddCustomColor) onAddCustomColor(newColor);
+                    setPickerKey(prev => prev + 1);
+                    e.target.blur();
+                  }}
                   className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                 />
                 <button 
-                  onClick={() => onAddCustomColor && onAddCustomColor(brushColor)}
-                  className="w-full h-full rounded-full border-2 border-white/10 flex items-center justify-center bg-gradient-to-br from-white/10 to-transparent hover:border-alpine-sap/30 transition-colors group"
-                  title="Añadir color actual a la paleta"
+                  disabled={isDeleteMode}
+                  className={`w-full h-full rounded-full border-2 border-white/10 flex items-center justify-center bg-gradient-to-br from-white/10 to-transparent transition-colors group ${isDeleteMode ? 'opacity-20 cursor-not-allowed' : 'hover:border-alpine-sap/30'}`}
+                  title="Añadir color actual"
                 >
                   <i className="fa-solid fa-plus text-[8px] text-white/20 group-hover:text-alpine-sap transition-colors"></i>
                 </button>
               </div>
+
+              <button
+                onClick={() => setIsDeleteMode(!isDeleteMode)}
+                className={`aspect-square rounded-full border-2 flex items-center justify-center transition-all ${
+                  isDeleteMode 
+                  ? 'bg-red-500 border-red-500 text-white shadow-lg shadow-red-500/20 scale-110' 
+                  : 'bg-white/5 border-white/10 text-white/20 hover:border-red-500/30 hover:text-red-400'
+                }`}
+                title={isDeleteMode ? 'Salir de modo eliminar' : 'Activar modo eliminar'}
+              >
+                <i className={`fa-solid ${isDeleteMode ? 'fa-check' : 'fa-trash-can'} text-[8px]`}></i>
+              </button>
             </div>
           </div>
         )}
