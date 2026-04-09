@@ -26,3 +26,4 @@
 | `e2027b5` | @antigravity | [AI] Responsive Scaling and Layer Fixes #ai-history | - | Migrated to relative coordinates and fixed layer selection logic. |
 | `05e0983` | @antigravity | [AI] Text Mode Implementation #ai-history | - | Added `TextProperties` and system font support. |
 | `pending` | @antigravity | [AI] Drawing UI Modernization and Color Glossary #ai-history | - | Cleaned up BrushToolbar and moved drawing properties to sidebar. Added semantic labels for drawing colors. |
+| `e4c3d59` | @antigravity | [AI] Integrated custom canvas configuration modal and Photoshop grid #ai-history | - | Consolidated text-mode fixes, drawing stabilization (scale/hitbox), and new canvas config modal. |
