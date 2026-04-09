@@ -1,10 +1,11 @@
 
-export enum DecorationCategory {
-  SUELO = 'Suelo',
-  PARED = 'Pared',
-  MESA = 'Mesa / Decoración',
-  TECHO = 'Techo / Superior',
-  PERSONA = 'Personas'
+export enum AssetCategory {
+  INVENTORY = 'Inventario',
+  BACKGROUND = 'Fondo',
+  OBJECT = 'Objeto',
+  CHARACTER = 'Personaje',
+  EFFECT = 'Efecto/VFX',
+  OTHER = 'Otros'
 }
 
 export enum PricingType {
@@ -15,10 +16,10 @@ export enum PricingType {
 
 export type VisualBehavior = 'strict' | 'generative';
 
-export interface DecorationItem {
+export interface AssetItem {
   id: string;
   name: string;
-  category: DecorationCategory;
+  category: AssetCategory;
   price?: number;
   pricingType: PricingType;
   image: string;

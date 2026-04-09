@@ -2,10 +2,14 @@ import { PlacedItem } from "../../domain/types";
 
 export const getStrictItemPrompt = (item: PlacedItem, index: number): string => {
    return `   - [OBRA DE AUTOR / FIJO] (Item #${index}) "${item.name.toUpperCase()}": 
-         * PRIORIDAD: INTEGRACIÓN LUMÍNICA FOTOREALISTA.
-         * GEOMETRÍA/TEXTURA: Mantener la identidad visual (patrón/forma/colores base) al 100%.
-         * ILUMINACIÓN (CRÍTICO): EL OBJETO DEBE RECIBIR LA LUZ DE LA HABITACIÓN. Generar sombreado realista (self-shadowing) y brillos según la dirección de la luz de la 'Original Photo'.
-         * BORDES: Fundir los bordes con el entorno para eliminar el efecto "pegatina".
+         * CRITICAL DIRECTIVE: DO NOT REDESIGN THIS OBJECT.
+         * SOURCE OF TRUTH: The "REFERENCE IMAGE FOR ITEM #${index}" is the EXACT object to place. 
+         * PROHIBITED: Do NOT change the shape, texture, color, or materials. Do NOT "interpret" or "improve" the design.
+         * TASK:
+           1. Cut out the object from the reference image mentally.
+           2. Apply it to the "Placement Blueprint" coordinates.
+           3. ONLY ADJUST LIGHTING: Add realistic shadows (drop shadow + self-shadow) and lighting reflection to match the room.
+         * BORDES: Fundir los bordes con el entorno para eliminar el efecto "pegatina", pero MANTENIENDO la silueta original.
          ${item.occlusionMode === 'destroy'
          ? `* **MODO DE OCLUSIÓN (DESTRUCTIVO)**: THE BACKGROUND BEHIND THIS ITEM HAS BEEN DELETED.
                - THE REGION IS PUNCHED OUT (BLACK).
@@ -46,25 +50,23 @@ export const getCreativeItemPrompt = (item: PlacedItem, index: number): string =
 export const buildMainPrompt = (strictItems: string, creativeItems: string, groups: { members: string[], prompt: string }[] = []): string => {
 
    const relationsSections = groups.length > 0 ? `
-   5. **OBJECT RELATIONSHIPS & INTERACTIONS (SUPERIOR DIRECTIVE):**
-      These instructions OVERRIDE general behavior. Analyze the "INTERACTION LOGIC" carefully.
+   5. **OBJECT RELATIONSHIPS & INTERACTIONS:**
+      These instructions apply ONLY if they do NOT satisfy the Strict Fidelity rules.
       ${groups.map((g, i) => `RELATION #${i + 1}:
       - MEMBERS: ${g.members.join(', ')}
       - INTERACTION LOGIC: "${g.prompt}"
       - BEHAVIORAL RULES:
-        * **POSE & ACTION**: Adjust members' poses, expressions, or positions to match the logic (e.g. if pointing, modify limbs).
-        * **PHYSICAL BRIDGES**: ONLY generate a physical "unión puente" (shroud, vines, beams, flow) IF the logic explicitly implies joining or releasing material. 
-        * **MATERIAL UNITY**: If a bridge is required, it must use the members' own textures. 
-        * **DO NOT** create glowing beams or foreign connections if the members are people interacting socially (pointing, looking, etc.).`).join('\n\n')}
+        * **POSE & ACTION**: Adjust members' poses, expressions, or positions to match the logic.
+        * **MATERIAL UNITY**: If a bridge is required, it must use the members' own textures.`).join('\n\n')}
     ` : '';
 
-   return `ACT AS AN EXPERT INTERIOR DESIGN CGI ARTIST. 
-    YOUR TASK: RENDER NEW OBJECTS ONTO AN EMPTY ROOM.
+   return `ACT AS AN EXPERT IMAGE EDITOR & COMPOSITOR. 
+    YOUR TASK: SEAMLESSLY INTEGRATE NEW ASSETS INTO THE PROVIDED IMAGE.
     
     INPUTS:
     1. "Original Photo" (Base Image) -> Background.
     2. "Placement Blueprint" -> Spatial guide (X/Y, Scale, Perspective).
-    3. "Reference Images" -> Visual identity/source.
+    3. "Reference Images" -> Visual identity of the assets to be placed.
 
     WORKFLOW:
     1. Start with "Original Photo".
@@ -75,15 +77,17 @@ export const buildMainPrompt = (strictItems: string, creativeItems: string, grou
    INSTRUCTIONS FOR OBJECT PLACEMENT & VISUAL BEHAVIOR:
    
    1. **HIERARCHY OF TRUTH (CRITICAL):**
-      - LEVEL 1 (TOP): **"OBJECT RELATIONSHIPS" (Section 5)**.
-      - LEVEL 2: **"NOTA ADICIONAL DEL USUARIO"** (Found in item lists).
-      - LEVEL 3: **FIDELITY RULES** (Strict vs Creative).
-      - *Rule Case*: If a user note says "it's releasing lines", you MUST modify the item even if it's "Strict" to show that interaction.
-
+      - LEVEL 1 (SUPREME): **VISUAL FIDELITY of "FIJO/AUTOR" items**. You CANNOT change their shape/design.
+      - LEVEL 2: **"NOTA ADICIONAL DEL USUARIO"**.
+      - LEVEL 3: **"OBJECT RELATIONSHIPS"**.
+      
    2. **VISUAL FIDELITY RULES:**
       A. **ITEMS MARKED "FIJO/AUTOR" (STRICT):**
-         - Preserve texture and core identity.
-         - **EXCEPTION**: You MAY bend, rotate, or slightly modify the edges/pose if a RELATIONSHIP or USER NOTE requires it.
+         - **CLONE THE REFERENCE IMAGE**.
+         - Do NOT generate a "better" version. Use the *exact* one provided.
+         - Do NOT change colors (e.g. if reference is red, do not make it white).
+         - Do NOT change geometry (e.g. if reference is a spiral, keep it a spiral).
+         - **ALLOWANCE**: You may only add shadows and lighting reflections.
       
       B. **ITEMS MARKED "AUTO/GENERATIVO":**
          - Generate a completely fresh instance.
@@ -101,6 +105,27 @@ export const buildMainPrompt = (strictItems: string, creativeItems: string, grou
    LIST OF ITEMS TO INTEGRATE:
    ${strictItems}
    ${creativeItems}
+
+   ================================================================================
+   **POST-GENERATION ANALYSIS (MANDATORY)**:
+   After generating the image, you MUST analyze the final result and estimate the VISIBLE SURFACE AREA for items with irregular shapes (like moss or grass).
+   
+   OUTPUT FORMAT:
+   Return the final image normally.
+   BUT, at the very end of your text response (if any), you MUST include a JSON block with this structure:
+   
+   \`\`\`json
+   {
+      "usageAnalysis": {
+         "ITEM_ID_1": 0.0, // Estimated area in square meters (m2) based on visual coverage in the scene.
+         "ITEM_ID_2": 0.0
+      }
+   }
+   \`\`\`
+   
+   - Assume the average room height is 3 meters to gauge scale.
+   - ONLY include items from the list above.
+   ================================================================================
 
    EXECUTE WITH PHOTOREALISTIC QUALITY. OUTPUT ONLY THE FINAL IMAGE.`;
 };

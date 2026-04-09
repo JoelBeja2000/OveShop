@@ -1,0 +1,62 @@
+Design System Specification for AI Studio
+=========================================
+
+Typography
+----------
+Font Family: 'JetBrains Mono', monospace
+
+Color Palette (Alpine Theme)
+----------------------------
+- Dark Background: #121212 (Obsidian)
+- Light Background: #F4F1EA (Ash)
+- Accents:
+  - Oak:      #D4B996
+  - Walnut:   #3D2B1F
+  - Cedar:    #8C5E45
+  - Sap:      #A2AD91 (Green)
+  - Lavender: #9c91ad
+
+Tailwind Configuration
+----------------------
+tailwind.config = {
+  darkMode: 'class',
+  theme: {
+    extend: {
+      fontFamily: {
+        sans: ['"JetBrains Mono"', 'monospace'],
+      },
+      colors: {
+        alpine: {
+          oak: '#D4B996',
+          walnut: '#3D2B1F',
+          cedar: '#8C5E45',
+          sap: '#A2AD91',
+          lavender: '#9c91ad',
+          ash: '#F4F1EA',
+          obsidian: '#121212'
+        }
+      }
+    }
+  }
+}
+
+CSS Styles & Shapes
+-------------------
+/* Organic / Pebble Shapes */
+.pebble-shape {
+  border-radius: 45% 55% 65% 35% / 40% 50% 60% 40%;
+}
+
+.organic-soft {
+  border-radius: 2rem 4rem 2rem 4rem;
+}
+
+.asymmetric-curve {
+  border-radius: 60% 40% 70% 30% / 30% 70% 40% 60%;
+}
+
+/* Glassmorphism & UI */
+- Use backdrop-blur-3xl
+- Background panels: bg-black/80 or bg-white/5
+- Buttons: Rounded, organic shapes
+- Mode: Dark Mode First

@@ -1,6 +1,6 @@
 
 import React, { useRef, useState, useEffect } from 'react';
-import { PlacedItem, PerspectivePoints, PricingType, VisualBehavior } from '../src/domain/types';
+import { PlacedItem, PerspectivePoints, PricingType, VisualBehavior, AssetCategory } from '../src/domain/types';
 
 interface CameraCaptureProps {
   darkMode: boolean;
@@ -10,7 +10,10 @@ interface CameraCaptureProps {
   setSelectedId: (id: string | null) => void;
   externalBackground?: string | null;
   // Updated onDropItem to include visualBehavior to match handleAddItem signature
-  onDropItem?: (id: string, name: string, image: string, price: number, pricingType: PricingType, x: number, y: number, hue: number, sat: number, bri: number, description: string, visualBehavior: VisualBehavior) => void;
+  onDropItem?: (id: string, name: string, image: string, price: number, pricingType: PricingType, x: number, y: number, hue: number, sat: number, bri: number, description: string, visualBehavior: VisualBehavior, category: AssetCategory) => void;
+  onFileUpload?: (files: FileList | File[], dropPos: { x: number, y: number }) => void;
+  zoom: number;
+  setZoom: React.Dispatch<React.SetStateAction<number>>;
 }
 
 function getPerspectiveMatrix(w: number, h: number, p: PerspectivePoints) {
@@ -41,7 +44,7 @@ function getPerspectiveMatrix(w: number, h: number, p: PerspectivePoints) {
 }
 
 const CameraCapture: React.FC<CameraCaptureProps> = ({
-  placedItems, setPlacedItems, selectedId, setSelectedId, externalBackground, onDropItem
+  placedItems, setPlacedItems, selectedId, setSelectedId, externalBackground, onDropItem, onFileUpload, zoom, setZoom
 }) => {
   const canvasRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -281,34 +284,64 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({
 
   return (
     <div
-      className="w-full h-full flex items-center justify-center relative select-none"
+      className="w-full h-full flex items-center justify-center relative select-none cursor-default overflow-hidden"
       onMouseDown={() => { setSelectedId(null); setIsWarpMode(false); }}
       onTouchStart={() => { setSelectedId(null); setIsWarpMode(false); }}
+      onWheel={(e) => {
+        if (e.ctrlKey || e.metaKey) {
+          e.preventDefault();
+          const delta = -e.deltaY;
+          const factor = Math.exp(delta / 500);
+          setZoom(z => Math.max(0.2, Math.min(5, z * factor)));
+        }
+      }}
     >
       <div
         ref={canvasRef}
-        style={{ aspectRatio: aspectRatio }}
-        className="relative w-full h-full bg-[#050505] overflow-hidden shadow-2xl rounded-2xl md:rounded-[3rem] border border-white/5"
+        style={{ 
+          aspectRatio: aspectRatio,
+          transform: `scale(${zoom})`,
+          transformOrigin: 'center center',
+          transition: 'transform 0.1s cubic-bezier(0.19, 1, 0.22, 1)'
+        }}
+        className="relative w-full h-full bg-[#050505] overflow-visible shadow-2xl rounded-2xl md:rounded-[3rem] border border-white/5"
         onDragOver={(e) => e.preventDefault()}
         onDrop={(e) => {
           e.preventDefault();
-          const data = JSON.parse(e.dataTransfer.getData("application/json"));
           const rect = canvasRef.current!.getBoundingClientRect();
-          // Added data.visualBehavior to match the updated onDropItem signature
-          onDropItem?.(
-            data.id,
-            data.name,
-            data.image,
-            data.price,
-            data.pricingType,
-            ((e.clientX - rect.left) / rect.width) * 100,
-            ((e.clientY - rect.top) / rect.height) * 100,
-            data.hueRotate,
-            data.saturation,
-            data.brightness,
-            data.description,
-            data.visualBehavior
-          );
+          const dropX = ((e.clientX - rect.left) / rect.width) * 100;
+          const dropY = ((e.clientY - rect.top) / rect.height) * 100;
+
+          // HANDLE OS FILES
+          if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            onFileUpload?.(e.dataTransfer.files, { x: dropX, y: dropY });
+            return;
+          }
+
+          // HANDLE INTERNAL JSON DATA
+          const jsonData = e.dataTransfer.getData("application/json");
+          if (jsonData) {
+            try {
+              const data = JSON.parse(jsonData);
+              onDropItem?.(
+                data.id,
+                data.name,
+                data.image,
+                data.price,
+                data.pricingType,
+                dropX,
+                dropY,
+                data.hueRotate,
+                data.saturation,
+                data.brightness,
+                data.description,
+                data.visualBehavior,
+                data.category
+              );
+            } catch (err) {
+              console.error("Internal drop error:", err);
+            }
+          }
         }}
       >
         {externalBackground && <img src={externalBackground} className="w-full h-full object-contain pointer-events-none" alt="" />}
@@ -383,7 +416,7 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({
                         onMouseDown={(e) => handleRotationStart(item.id, e)}
                         onTouchStart={(e) => handleRotationStart(item.id, e)}
                         className="absolute -top-16 left-1/2 -translate-x-1/2 w-10 h-16 flex flex-col items-center justify-end z-[300] cursor-grab group origin-bottom"
-                        style={{ transform: `translateX(-50%) scale(${1 / item.scale})` }}
+                        style={{ transform: `translateX(-50%) scale(${1 / (item.scale * zoom)})` }}
                       >
                         <div className="w-0.5 h-8 bg-white/80 shadow-sm"></div>
                         <div className="w-5 h-5 bg-white rounded-full shadow-md flex items-center justify-center transform group-active:scale-110 transition-transform">
@@ -392,16 +425,16 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({
                       </div>
 
                       {/* TIRADORES DE ESCALA MEJORADOS PARA TOUCH */}
-                      <div onMouseDown={(e) => handleResizeStart(item.id, e)} onTouchStart={(e) => handleResizeStart(item.id, e)} style={{ transform: `scale(${1 / item.scale})` }} className="absolute -top-4 -left-4 w-10 h-10 flex items-center justify-center z-[300] cursor-nwse-resize group">
+                      <div onMouseDown={(e) => handleResizeStart(item.id, e)} onTouchStart={(e) => handleResizeStart(item.id, e)} style={{ transform: `scale(${1 / (item.scale * zoom)})` }} className="absolute -top-4 -left-4 w-10 h-10 flex items-center justify-center z-[300] cursor-nwse-resize group">
                         <div className="w-5 h-5 bg-white rounded-full border-2 border-black shadow-lg group-active:scale-125 transition-transform"></div>
                       </div>
-                      <div onMouseDown={(e) => handleResizeStart(item.id, e)} onTouchStart={(e) => handleResizeStart(item.id, e)} style={{ transform: `scale(${1 / item.scale})` }} className="absolute -top-4 -right-4 w-10 h-10 flex items-center justify-center z-[300] cursor-nesw-resize group">
+                      <div onMouseDown={(e) => handleResizeStart(item.id, e)} onTouchStart={(e) => handleResizeStart(item.id, e)} style={{ transform: `scale(${1 / (item.scale * zoom)})` }} className="absolute -top-4 -right-4 w-10 h-10 flex items-center justify-center z-[300] cursor-nesw-resize group">
                         <div className="w-5 h-5 bg-white rounded-full border-2 border-black shadow-lg group-active:scale-125 transition-transform"></div>
                       </div>
-                      <div onMouseDown={(e) => handleResizeStart(item.id, e)} onTouchStart={(e) => handleResizeStart(item.id, e)} style={{ transform: `scale(${1 / item.scale})` }} className="absolute -bottom-4 -left-4 w-10 h-10 flex items-center justify-center z-[300] cursor-nesw-resize group">
+                      <div onMouseDown={(e) => handleResizeStart(item.id, e)} onTouchStart={(e) => handleResizeStart(item.id, e)} style={{ transform: `scale(${1 / (item.scale * zoom)})` }} className="absolute -bottom-4 -left-4 w-10 h-10 flex items-center justify-center z-[300] cursor-nesw-resize group">
                         <div className="w-5 h-5 bg-white rounded-full border-2 border-black shadow-lg group-active:scale-125 transition-transform"></div>
                       </div>
-                      <div onMouseDown={(e) => handleResizeStart(item.id, e)} onTouchStart={(e) => handleResizeStart(item.id, e)} style={{ transform: `scale(${1 / item.scale})` }} className="absolute -bottom-4 -right-4 w-10 h-10 flex items-center justify-center z-[300] cursor-nwse-resize group">
+                      <div onMouseDown={(e) => handleResizeStart(item.id, e)} onTouchStart={(e) => handleResizeStart(item.id, e)} style={{ transform: `scale(${1 / (item.scale * zoom)})` }} className="absolute -bottom-4 -right-4 w-10 h-10 flex items-center justify-center z-[300] cursor-nwse-resize group">
                         <div className="w-5 h-5 bg-white rounded-full border-2 border-black shadow-lg group-active:scale-125 transition-transform"></div>
                       </div>
                     </>
@@ -418,7 +451,7 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({
                           style={{
                             left: `${h[corner as keyof typeof h].x}%`,
                             top: `${h[corner as keyof typeof h].y}%`,
-                            transform: 'translate(-50%, -50%)'
+                            transform: `translate(-50%, -50%) scale(${1 / (item.scale * zoom)})`
                           }}
                         >
                           <div className="w-5 h-5 bg-alpine-sap rounded-full border-2 border-black shadow-md transition-transform group-active:bg-white group-active:scale-110"></div>
@@ -430,7 +463,7 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({
                   {/* BARRA DE ACCIONES FLOTANTE ADAPTADA */}
                   <div
                     className="absolute -bottom-24 left-1/2 flex items-center gap-3 bg-black/95 backdrop-blur-3xl p-2 rounded-full border border-white/10 z-[400] shadow-2xl animate-fade-in-up origin-top"
-                    style={{ transform: `translateX(-50%) scale(${1 / item.scale})` }}
+                    style={{ transform: `translateX(-50%) scale(${1 / (item.scale * zoom)})` }}
                     onMouseDown={(e) => e.stopPropagation()}
                     onTouchStart={(e) => e.stopPropagation()}
                   >

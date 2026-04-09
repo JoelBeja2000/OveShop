@@ -5,6 +5,7 @@ import { getStrictItemPrompt, getCreativeItemPrompt, buildMainPrompt } from "./G
 
 export interface AIResponse {
     image: string;
+    usageAnalysis?: Record<string, number>;
 }
 
 import { ImageProcessor } from "./ImageProcessor";
@@ -82,8 +83,30 @@ export class GeminiAIAdapter {
 
             if (response.candidates?.[0]?.content?.parts) {
                 const imagePart = response.candidates[0].content.parts.find(p => p.inlineData);
+                const textPart = response.candidates[0].content.parts.find(p => p.text);
+
+                let usageAnalysis: Record<string, number> | undefined;
+
+                if (textPart?.text) {
+                    try {
+                        const jsonMatch = textPart.text.match(/```json\n([\s\S]*?)\n```/) || textPart.text.match(/{[\s\S]*}/);
+                        if (jsonMatch) {
+                            const jsonStr = jsonMatch[1] || jsonMatch[0];
+                            const parsed = JSON.parse(jsonStr);
+                            if (parsed.usageAnalysis) {
+                                usageAnalysis = parsed.usageAnalysis;
+                            }
+                        }
+                    } catch (e) {
+                        console.warn("Failed to parse usage analysis JSON", e);
+                    }
+                }
+
                 if (imagePart?.inlineData) {
-                    return { image: `data:image/png;base64,${imagePart.inlineData.data}` };
+                    return {
+                        image: `data:image/png;base64,${imagePart.inlineData.data}`,
+                        usageAnalysis
+                    };
                 }
             }
             throw new Error("No image generated");
