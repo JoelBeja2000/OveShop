@@ -1,56 +1,44 @@
-# Architecture Overview - OveShop
+# Architectural Identity - OveShop
 
-OveShop is built on a modular architecture that separates concerns between the UI, business logic, and professional creative tools.
+OveShop is not a generic image editor; it is a **Hierarchical AI Orchestrator** designed to bridge the gap between abstract intent and physical materiality through a unique multi-prompt and semantic mapping architecture.
 
-## Layer Diagram
+## ⚜️ Distinctive Pillars
+
+### 1. Hierarchical Prompting Architecture (HPA)
+Unlike standard AI tools that use a single global prompt, OveShop implements a **layered prompting tree**:
+- **Atomic Prompts**: Every asset (layer) possesses its own independent metadata. You can specify that a "Stone" asset should be "Lava Red" without affecting the rest of the scene.
+- **Linked Entities**: Multiple layers can be grouped into "Entidades Enlazadas". This allows for complex relationships where individual layer prompts coexist with a group-level behavioral prompt.
+- **Global Synthesis**: The engine aggregates this tree into a structured multimodal request, ensuring the AI understands the distinction between background, individual objects, and their specific modifications.
+
+### 2. Semantic Ink Engine (Drawing-to-Material)
+Drawing in OveShop is a semantic operation, not just a visual one:
+- **Property-Encoded Strokes**: Every stroke color in the custom palette is linked to a **Material Property** (e.g., depth, emissivity, roughness).
+- **Material Glossary**: Users can assign properties like "Etched Wood" or "Engraved Metal" to specific colors. The AI interprets these colors as material instructions rather than flat pigments.
+
+### 3. Semantic Typography (Material-Aware Text)
+Text interactions in OveShop are physics-aware:
+- **Chroma-Encoded Depth**: Colors in rich text components are mapped to physical properties. A brown text color might signify a "Deep Engraving", while a neon-blue indicates "Self-Emitting Glow".
+- **Inter-Layer Awareness**: When text is placed over a specific background material, the AI cross-references the text property to determine interaction (shadows, reflections, textures).
+
+### 4. Fast Deformation (AI Guidance Bridge)
+The system allows for **Rapid Geometric Pre-processing**:
+- **Warping for AI**: Assets can be quickly deformed or skewed to match the perspective and geometry of the base photo.
+- **Post-Processing Support**: This manual deformation serves as a "blueprint" that helps the AI minimize hallucinations during the final rendering pass, ensuring the generated assets align perfectly with the scene's physics.
+
+## Technical Implementation Logics
 
 ```mermaid
 graph TD
-    UI[React Components / UI Layer] --> App[Application Logic]
-    App --> Domain[Domain Entities & Types]
-    App --> Drawing[Drawing Module (SVG)]
-    App --> Canvas[Canvas Config System]
-    App --> Infra[Infrastructure Layer]
+    UserInput[Text/Drawing/Image] --> ColorMap[Semantic Color Mapper]
+    ColorMap --> MaterialDef[Material/Property Definition]
     
-    subgraph Infrastructure
-        Adapter[Gemini AI Adapter]
-        Processor[Image Processor]
-        Storage[LocalStorage Palette Sync]
+    subgraph PromptTree[Hierarchical Prompting Tree]
+        GlobalP[Global Scene Prompt]
+        GroupP[Group/Linked Prompt]
+        ItemP[Individual Item Prompt]
     end
     
-    Adapter --> Gemini[Google Gemini API]
-    Processor --> CanvasAPI[HTML5 Canvas API]
+    MaterialDef --> ItemP
+    GlobalP & GroupP & ItemP --> GeminiAdapter[Gemini AI Adapter]
+    GeminiAdapter --> FinalRender[Material-Realistic Render]
 ```
-
-## Core Components
-
-### 1. Manual Drawing Module (`DrawingElement.tsx`)
-The `DrawingModule` implements a professional-grade sketching system using pure SVG:
-- **Vector-Based**: All strokes are stored as point arrays and rendered as SVG paths, ensuring infinite scalability without resolution loss.
-- **Normalization**: Coordinates are normalized to a 0-100% relative coordinate system, allowing drawings to maintain their scale and position regardless of the background resolution.
-- **Hitbox Logic**: Dynamic bounding box calculation recalculates the item's perimeter upon stroke completion, ensuring precise selection and transformation.
-- **Stroke Scaling**: Implements a compensation factor to maintain visual brush width consistency even when the drawing is scaled or resized.
-
-### 2. Canvas Configuration System
-Enables professional workspace setup:
-- **CanvasConfigModal**: Orchestrates resolution (W/H), background color, and the "Photoshop Grid" (transparency linear-gradients).
-- **Flexible Flow**: System unlocks access to Asset Libraries and Drawing Tools as soon as a background is defined (either by image or manual config).
-
-### 3. Color Management & Palettes
-- **Auto-Preservation**: A reactive listener in `App.tsx` captures any color picked from the native dialog and automatically integrates it into the `customPalette` (LRU Cache logic).
-- **Delete Mode**: A togglable UI state that allows users to prune and manage their favorite colors directly from the sidebar.
-- **Semantic Mapping (Glossary)**: Allows users to map hex codes to business labels (e.g., `#A2AD91` -> "Savia Alpinia"), used for AI-prompt generation and client reports.
-
-### 4. Gemini AI Adapter
-- **Blackout Zones**: Masking areas where items are placed to help the AI understand depth.
-- **Prompt Engineering**: Building dynamic prompts focused on "Strict" vs "Generative" behaviors.
-
-## Data Flow
-
-1. **Setup**: User defines the workspace via `CanvasConfigModal` or by uploading a base image.
-2. **Creation**: User adds decorations (`DecorationCarousel`) or creates freehand sketches (`DrawingModule`).
-3. **Refinement**: Colors and textures are adjusted; custom palettes are synchronized via `LocalStorage`.
-4. **Rendering**:
-    - The `Processor` generates a blueprint composite.
-    - `GeminiAIAdapter` orchestrates the final realistic render request.
-5. **Versioning**: Progress is documented in `HISTORY.md` using the GHS Level 3 protocol.

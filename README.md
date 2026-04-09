@@ -1,74 +1,46 @@
-# 🖼️ OveShop - AI Image Editor & Compositor
+# 🖼️ OveShop - Semantic AI Creative Orchestrator
 
 👉 [Leer en Español](README.es.md)
 
-OveShop is a powerful image editing tool that leverages **Google Gemini Multimodal AI** to seamlessly integrate assets into any photo. By combining user-uploaded images with advanced AI composition, OveShop allows for professional-grade image manipulation with simple drag-and-drop interactions.
+OveShop is not a generic image editor; it is an orchestration suite designed to bridge the gap between creative intent and physical materiality through a unique multi-prompt and semantic mapping architecture.
 
-![App Header Placeholder](https://via.placeholder.com/1200x400?text=OveShop+AI+Image+Editor)
+![App Header Placeholder](https://via.placeholder.com/1200x400?text=OveShop+AI+Creative+Suite)
 
-## ✨ Key Features
+## 🚀 Distinctive Pillars (What Makes Us Unique)
 
-- **🤖 AI Composition**: Uses Gemini 3 Pro to generate realistic renders of assets integrated into your base image.
-- **📷 Local Asset Upload**: Upload any image or icon from your PC to use in your compositions.
-- **📐 Perspective & Occlusion**: Smart placement of items that respect the scene's geometry and depth.
-- **🔄 Before/After Comparison**: Interactive slider to visualize the AI's transformation.
-- **🎨 Asset Library**: Organize your custom uploads into categories (Background, Object, Character, Effect).
-- **✍️ Manual Drawing**: Integrated SVG vector engine for sketching directly on the canvas.
+### 1. Hierarchical Prompting Architecture (HPA) 🤖
+Unlike standard AI tools that use a single global prompt, OveShop implements a layered prompting tree:
+- **Individual Prompts**: Every asset (layer) possesses its own independent metadata. You can specify that a "Stone" asset should be "Lava Red" or covered in "Moss" without affecting the rest of the scene.
+- **Linked Entities**: Multiple layers can be grouped together. Each entity keeps its individual prompt, while the group shares a collective prompt to define their interaction.
+- **Total Precision**: Link as many layers as needed and stack multiple prompts per element for absolute control over the final render.
 
-## 🚀 Tech Stack
+### 2. Semantic Ink (Property-Encoded Drawing) ✍️
+Drawing in OveShop is a semantic operation, not just a visual one:
+- **Color = Material**: Each stroke color can be mapped to a physical property (e.g., metal, glow, depth).
+- **Materiality awareness**: If you sketch with a color assigned to "engraving", the AI interprets that stroke as a physical incision on the underlying surface rather than a flat pigment.
 
-- **Frontend**: React 19 + Vite + TypeScript
-- **Mobile**: Capacitor (Android/iOS)
-- **AI Engine**: Google Generative AI (Gemini)
-- **Styling**: Modern CSS with Glassmorphism and responsive design
+### 3. Semantic Typography (Physics-Aware Text) 🔡
+Text in OveShop interacts with its environment:
+- **Depth-Encoded Colors**: Map each text color to a property. For example, brown text can signify a "deep engraving" into wood, while neon-blue indicates a "self-emitting glow".
+- **Physical Interaction**: The AI understands how the text affects the lighting and shadows of the texture it sits on.
 
-## 🛠️ Architecture
+### 4. Fast Deformation (AI Perspective Guidance) 📐
+- **Geometric Blueprinting**: Quickly deform or skew elements to match the perspective of the base photo.
+- **AI Roadmap**: This pre-deformation serves as a vital guide for the AI to render the final image without geometric hallucinations, ensuring visual consistency.
 
-OveShop follows a **Clean Architecture** pattern to ensure scalability and maintainability:
-
-- **Domain**: Pure business logic and entity definitions (`AssetItem`, `PlacedItem`).
-- **Infrastructure**: Concrete implementations for external services (AI Adapters, Image Processing).
-- **Application**: Glue logic and React components.
-
-See [ARCHITECTURE.md](./ARCHITECTURE.md) for a detailed breakdown.
-
-## 🏁 Getting Started
+## 🛠️ Getting Started
 
 ### Prerequisites
-
 - Node.js (Latest LTS)
-- NPM or Yarn
-- Android Studio / Xcode (for mobile builds)
-- A **Google Gemini API Key**
+- A **Google Gemini API Key** ([Get it here](https://aistudio.google.com/app/apikey))
 
-### Installation
-
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/JoelBeja2000/OveShop.git
-   cd OveShop
-   ```
-
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-
-3. Run in development mode:
-   ```bash
-   npm run dev
-   ```
-
-## 🔐 Security & Privacy
-
-OveShop prioritizes your security. **No API keys or personal images are ever uploaded to our servers.**
-- API keys are entered locally and stored securely on your device.
-- Image processing happens between your device and the Google Gemini API directly.
+### Quick Start
+1. `npm install`
+2. `npm run dev`
+3. Enter your API Key and start creating.
 
 ## 📄 License
-
 This project is licensed under the [MIT License](./LICENSE).
 
 ---
-
 Developed with ❤️ by [Joel Barea](https://github.com/JoelBeja2000)
