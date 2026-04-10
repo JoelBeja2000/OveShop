@@ -50,6 +50,8 @@ const App: React.FC = () => {
 
   const [isRendering, setIsRendering] = useState(false);
   const [renderedImage, setRenderedImage] = useState<string | null>(null);
+  const [beforeImage, setBeforeImage] = useState<string | null>(null);
+  const [exportFormat, setExportFormat] = useState<'png' | 'jpeg' | 'webp'>('png');
   const [showComparison, setShowComparison] = useState(false);
   const [hasApiKey, setHasApiKey] = useState(false);
 
@@ -196,25 +198,16 @@ const App: React.FC = () => {
         let strokesInGlobalSpace: DrawingStroke[] = [];
 
         if (item) {
-          strokesInGlobalSpace = drawingStrokes.map(s => ({
-            ...s,
-            segments: s.segments.map(seg => ({
-              ...seg,
-              points: seg.points.map(p => {
-                const gx = item.x - (item.drawingBounds?.width || 0)/2 + (p.x / 100) * (item.drawingBounds?.width || 0);
-                const gy = item.y - (item.drawingBounds?.height || 0)/2 + (p.y / 100) * (item.drawingBounds?.height || 0);
-                globalPoints.push({ x: gx, y: gy });
-                return { x: gx, y: gy };
-              })
-            }))
-          }));
+          // Re-editing: strokes are already in global 1000×H space (converted on edit entry)
+          strokesInGlobalSpace = drawingStrokes;
+          drawingStrokes.forEach(s => s.segments.forEach(seg => seg.points.forEach(p => globalPoints.push(p))));
         } else {
           strokesInGlobalSpace = drawingStrokes;
           drawingStrokes.forEach(s => s.segments.forEach(seg => seg.points.forEach(p => globalPoints.push(p))));
         }
 
-        if (globalPoints.length === 0) return prev;
-        let minX = 100, minY = 100, maxX = 0, maxY = 0;
+        // Calculate tight bounding box in canvas pixel space (0 to 1000 range)
+        let minX = 1001, minY = 1001, maxX = -1, maxY = -1;
         globalPoints.forEach(p => {
           minX = Math.min(minX, p.x);
           minY = Math.min(minY, p.y);
@@ -222,52 +215,64 @@ const App: React.FC = () => {
           maxY = Math.max(maxY, p.y);
         });
 
-        const w = Math.max(2, maxX - minX);
-        const h = Math.max(2, maxY - minY);
-        const cx = minX + w / 2;
-        const cy = minY + h / 2;
+        if (maxX === -1) return prev; // Safety
 
-        // Calculate a scale factor to keep stroke width consistent visually.
-        // If the box expands, the local coordinates span more physical space,
-        // so we must decrease the numerical width to match.
-        const wOld = item?.drawingBounds?.width || 100;
-        const scaleFactor = wOld / w;
+        const w_px = Math.max(20, maxX - minX);
+        const h_px = Math.max(20, maxY - minY);
+        const cx_px = minX + w_px / 2;
+        const cy_px = minY + h_px / 2;
 
-        // 3. Normalize all strokes to new 0-100 local space
+        const currentEffectiveRatio = backgroundImage ? imageRatio : (sceneResolution ? sceneResolution.w / sceneResolution.h : 16/9);
+        const virtualH = 1000 / currentEffectiveRatio;
+
+        // Convert to canvas percentages ONLY for item placement property
+        const cx_pct = (cx_px / 1000) * 100;
+        const cy_pct = (cy_px / virtualH) * 100;
+        const w_pct = (w_px / 1000) * 100;
+        const h_pct = (h_px / virtualH) * 100;
+
+        // 3. Normalize all strokes to local PIXEL space (0 to w_px, 0 to h_px)
         const normalized = strokesInGlobalSpace.map(s => ({
           ...s,
           segments: s.segments.map(seg => ({
             ...seg,
             points: seg.points.map(p => ({
-              x: ((p.x - minX) / w) * 100,
-              y: ((p.y - minY) / h) * 100
+              x: p.x - minX,
+              y: p.y - minY
             })),
-            width: seg.width * scaleFactor
+            width: seg.width // Already in virtual pixels
           }))
         }));
 
         if (item) {
+          // Re-editing: update strokes, bounds, and position
           return prev.map(i => i.id === editingItemId ? {
             ...i,
-            x: cx, y: cy,
-            drawingBounds: { minX, minY, width: w, height: h },
             drawingStrokes: normalized,
-            aspectRatio: w / h
+            drawingBounds: { minX, minY, width: w_pct, height: h_pct },
+            x: cx_pct,
+            y: cy_pct,
+            aspectRatio: w_px / h_px,
+            colorLabels: drawingColorLabels
           } : i);
         } else {
           const newItem: PlacedItem = {
-            id: `draw_${Date.now()}`,
+            id: generateId(),
             itemId: 'system-drawing',
             name: 'Dibujo Personalizado',
             image: '',
-            x: cx, y: cy,
-            hueRotate: 0, saturation: 1, brightness: 1,
-            scale: 1, rotation: 1,
+            x: cx_pct,
+            y: cy_pct,
+            hueRotate: 0,
+            saturation: 1,
+            brightness: 1,
+            scale: 1,
+            rotation: 0,
             description: 'Dibujo creado manualmente',
             visualBehavior: 'generative',
             drawingStrokes: normalized,
-            drawingBounds: { minX, minY, width: w, height: h },
-            aspectRatio: w / h,
+            drawingBounds: { minX, minY, width: w_pct, height: h_pct },
+            aspectRatio: w_px / h_px,
             colorLabels: drawingColorLabels
           };
           return [...prev, newItem];
@@ -291,8 +296,32 @@ const App: React.FC = () => {
     if (interactionMode === 'draw') {
       handleFinishDrawing();
     } else {
-      handleSelectElement(selectedId);
-      if (interactionMode !== 'draw') setInteractionMode('draw');
+      // If a drawing item is selected, load its strokes transformed to global space
+      if (editingItemId) {
+        const item = placedItems.find(i => i.id === editingItemId);
+        if (item && item.drawingStrokes && item.drawingBounds) {
+          const { width: w_pct, height: h_pct } = item.drawingBounds;
+          const currentRatio = backgroundImage ? imageRatio : (sceneResolution ? sceneResolution.w / sceneResolution.h : 16/9);
+          const virtualH = 1000 / currentRatio;
+          const bw_px = (w_pct / 100) * 1000;
+          const bh_px = (h_pct / 100) * virtualH;
+          const tlx = (item.x / 100) * 1000 - bw_px / 2;
+          const tly = (item.y / 100) * virtualH - bh_px / 2;
+          const globalStrokes = item.drawingStrokes.map(s => ({
+            ...s,
+            segments: s.segments.map(seg => ({
+              ...seg,
+              points: seg.points.map(p => ({
+                x: tlx + p.x,
+                y: tly + p.y
+              }))
+            }))
+          }));
+          setDrawingStrokes(globalStrokes);
+          if (item.colorLabels) setDrawingColorLabels(item.colorLabels);
+        }
+      }
+      setInteractionMode('draw');
     }
   };
 
@@ -357,6 +386,7 @@ const App: React.FC = () => {
   };
   
   const handleSelectElement = (id: string | null) => {
+    if (id === selectedId) return;
     setSelectedId(id);
     if (id) {
       const item = placedItems.find(i => i.id === id);
@@ -364,9 +394,6 @@ const App: React.FC = () => {
         setInteractionMode('move');
         setEditingItemId(id);
         if (item.colorLabels) setDrawingColorLabels(item.colorLabels);
-        
-        const bounds = item.drawingBounds;
-        setDrawingStrokes(item.drawingStrokes);
       } else if (item?.textConfig) {
         setInteractionMode('text');
         setEditingItemId(id);
@@ -385,7 +412,7 @@ const App: React.FC = () => {
       }
     }
   };
-  const generateId = () => `id_${Date.now().toString(36)}_${Math.random().toString(36).substr(2, 5)}`;
+  const generateId = () => `id_${crypto.randomUUID().split('-')[0]}_${Date.now().toString(36)}`;
 
   const handleAddText = (x: number, y: number) => {
     saveToHistory(placedItems);
@@ -468,6 +495,35 @@ const App: React.FC = () => {
       item.id === id ? { ...item, ...updates } : item
     ));
   };
+
+  // Auto-load strokes when entering draw mode with an existing drawing selected
+  // This ensures strokes are loaded regardless of entry path (keyboard, toolbar, context menu)
+  useEffect(() => {
+    if (interactionMode === 'draw' && editingItemId && drawingStrokes.length === 0) {
+      const item = placedItems.find(i => i.id === editingItemId);
+      if (item && item.drawingStrokes && item.drawingStrokes.length > 0 && item.drawingBounds) {
+        const { width: w_pct, height: h_pct } = item.drawingBounds;
+        const currentRatio = backgroundImage ? imageRatio : (sceneResolution ? sceneResolution.w / sceneResolution.h : 16/9);
+        const virtualH = 1000 / currentRatio;
+        const bw_px = (w_pct / 100) * 1000;
+        const bh_px = (h_pct / 100) * virtualH;
+        const tlx = (item.x / 100) * 1000 - bw_px / 2;
+        const tly = (item.y / 100) * virtualH - bh_px / 2;
+        const globalStrokes = item.drawingStrokes.map(s => ({
+          ...s,
+          segments: s.segments.map(seg => ({
+            ...seg,
+            points: seg.points.map(p => ({
+              x: tlx + p.x,
+              y: tly + p.y
+            }))
+          }))
+        }));
+        setDrawingStrokes(globalStrokes);
+        if (item.colorLabels) setDrawingColorLabels(item.colorLabels);
+      }
+    }
+  }, [interactionMode, editingItemId]);
 
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -561,12 +617,36 @@ const App: React.FC = () => {
 
   const handleDownloadImage = () => {
     if (!renderedImage) return;
-    const link = document.createElement('a');
-    link.href = renderedImage;
-    link.download = `OveShop_Render_${new Date().getTime()}.png`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+
+    // Create a temporary image to draw onto a canvas for format conversion
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      // Fill with white for JPEG if it's transparent? Actually, usually better to keep what's there.
+      // If JPEG, we might want to fill with white to avoid black background on transparent areas.
+      if (exportFormat === 'jpeg') {
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
+
+      ctx.drawImage(img, 0, 0);
+      
+      const mimeType = `image/${exportFormat}`;
+      const dataUrl = canvas.toDataURL(mimeType, 0.95);
+      
+      const link = document.createElement('a');
+      link.href = dataUrl;
+      link.download = `OveShop_Render_${new Date().getTime()}.${exportFormat}`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    };
+    img.src = renderedImage;
   };
 
   const handleExportProject = () => {
@@ -634,7 +714,7 @@ const App: React.FC = () => {
   };
 
   const processWithAI = async () => {
-    if (!backgroundImage || placedItems.length === 0) return;
+    if ((!backgroundImage && !sceneResolution) || placedItems.length === 0) return;
     if (!hasApiKey) {
       await handleOpenKeyDialog();
       return;
@@ -644,12 +724,41 @@ const App: React.FC = () => {
 
     try {
       const canvasAdapter = new CanvasCollageAdapter();
-      const collageData = (await canvasAdapter.generateCollageBlob(backgroundImage, placedItems, true)).split(',')[1];
+      
+      // 1. Transparent collage for AI guide
+      const collageData = (await canvasAdapter.generateCollageBlob(
+        backgroundImage, 
+        placedItems, 
+        true,
+        sceneResolution,
+        sceneBgColor
+      )).split(',')[1];
+
+      // 2. Full collage for "Before" view (includes background)
+      const fullCollage = await canvasAdapter.generateCollageBlob(
+        backgroundImage,
+        placedItems,
+        false, // Opaque
+        sceneResolution,
+        sceneBgColor
+      );
+      setBeforeImage(fullCollage);
 
       const apiRatio = getSupportedAspectRatio(imageRatio);
 
       const aiAdapter = new GeminiAIAdapter(userApiKey || process.env.API_KEY || '');
-      const result = await aiAdapter.generateRender(backgroundImage, collageData, placedItems, apiRatio, relationGroups);
+      const result = await aiAdapter.generateRender(
+        backgroundImage, 
+        collageData, 
+        placedItems, 
+        apiRatio, 
+        relationGroups,
+        drawingColorLabels,
+        customPalette,
+        sceneResolution,
+        isTransparent
+      );
+      console.log('[RENDER] Step 5: Render complete!');
 
       if (result.image) {
         setRenderedImage(result.image);
@@ -975,7 +1084,7 @@ const App: React.FC = () => {
                       >
                         <div className="flex items-center gap-3">
                           <div className="w-8 h-8 rounded-lg bg-black/40 p-1 shrink-0">
-                            <img src={item.image} className="w-full h-full object-contain" alt="" />
+                            <img src={item.image || undefined} className="w-full h-full object-contain" alt="" />
                           </div>
                           <div className="min-w-0 flex-1">
                             <p className={`text-[7px] font-black uppercase tracking-wider truncate ${isSelected ? 'text-black' : 'text-white/80'}`}>{item.name}</p>
@@ -1180,7 +1289,7 @@ const App: React.FC = () => {
                             >
                               <div className="flex items-center gap-2">
                                 <div className="w-6 h-6 rounded bg-black/20 p-0.5 shrink-0">
-                                  <img src={item.image} className="w-full h-full object-contain" alt="" />
+                                  <img src={item.image || undefined} className="w-full h-full object-contain" alt="" />
                                 </div>
                                 <div className="min-w-0 flex-1">
                                   <p className={`text-[6px] font-black uppercase truncate ${isSelected ? 'text-white' : 'text-white/60'}`}>{item.name}</p>
@@ -1305,12 +1414,10 @@ const App: React.FC = () => {
               </div>
             )}
 
-            {renderedImage && backgroundImage ? (
-              <div className="w-full h-full flex items-center justify-center animate-fade-in relative">
+            {renderedImage && (beforeImage || backgroundImage) ? (
+              <div className="relative w-full h-full animate-fade-in">
                 {showComparison ? (
-                  <div className="w-full h-full max-w-5xl max-h-[80vh] flex items-center justify-center" style={{ aspectRatio: imageRatio }}>
-                    <ComparisonSlider before={backgroundImage} after={renderedImage} />
-                  </div>
+                  <ComparisonSlider before={beforeImage || backgroundImage || ''} after={renderedImage} />
                 ) : (
                   <div className="w-full h-full max-w-5xl max-h-[80vh] flex items-center justify-center relative group" style={{ aspectRatio: imageRatio }}>
                     <img src={renderedImage} className="w-full h-full object-contain rounded-[2rem] shadow-2xl" alt="Rendered Result" />
@@ -1353,30 +1460,40 @@ const App: React.FC = () => {
                   width: activeBrushWidth
                 }}
                 onEditDrawing={(id) => {
+                  // Guard: skip if already editing this item in draw mode
+                  if (editingItemId === id && interactionMode === 'draw') return;
                   const item = placedItems.find(i => i.id === id);
                   if (item && item.drawingStrokes && item.drawingBounds) {
-                    const { width, height } = item.drawingBounds;
-                    // Current global top-left based on current item.x, item.y
-                    const minX = item.x - width / 2;
-                    const minY = item.y - height / 2;
+                    const { width: w_pct, height: h_pct } = item.drawingBounds;
+                    // Convert percentage bounds back to virtual pixel dimensions
+                    const currentRatio = backgroundImage ? imageRatio : (sceneResolution ? sceneResolution.w / sceneResolution.h : 16/9);
+                    const virtualH = 1000 / currentRatio;
+                    const bw_px = (w_pct / 100) * 1000;
+                    const bh_px = (h_pct / 100) * virtualH;
+                    // Global top-left in virtual-pixel space
+                    const tlx = (item.x / 100) * 1000 - bw_px / 2;
+                    const tly = (item.y / 100) * virtualH - bh_px / 2;
                     
-                    // De-normalize strokes back to canvas global space
-                    const deNormalizedStrokes = item.drawingStrokes.map(stroke => ({
-                      ...stroke,
-                      segments: stroke.segments.map(seg => ({
+                    // De-normalize: strokes are in local pixel space (0..bw_px, 0..bh_px)
+                    // Add top-left offset to get back to global 1000×H space
+                    const globalStrokes = item.drawingStrokes.map(s => ({
+                      ...s,
+                      segments: s.segments.map(seg => ({
                         ...seg,
                         points: seg.points.map(p => ({
-                          x: (p.x * width) / 100 + minX,
-                          y: (p.y * height) / 100 + minY
+                          x: tlx + p.x,
+                          y: tly + p.y
                         }))
                       }))
                     }));
                     
                     setEditingItemId(id);
                     setInteractionMode('draw');
-                    setDrawingStrokes(deNormalizedStrokes); 
+                    setDrawingStrokes(globalStrokes);
+                    if (item.colorLabels) setDrawingColorLabels(item.colorLabels);
                   }
                 }}
+                editingItemId={editingItemId}
                 sceneResolution={sceneResolution}
                 sceneBgColor={sceneBgColor}
                 isTransparent={isTransparent}
@@ -1475,12 +1592,23 @@ const App: React.FC = () => {
             >
               <i className="fa-solid fa-sliders text-base"></i>
             </button>
+            <div className="flex flex-col gap-2 mb-2 px-1">
+              {(['png', 'jpeg', 'webp'] as const).map(f => (
+                <button
+                  key={f}
+                  onClick={() => setExportFormat(f)}
+                  className={`text-[10px] font-bold h-6 rounded-full transition-all ${exportFormat === f ? 'bg-white text-black' : 'hover:bg-white/10 text-white/40'}`}
+                >
+                  {f.toUpperCase()}
+                </button>
+              ))}
+            </div>
             <button
               onClick={handleDownloadImage}
-              title="Guardar Post-procesado"
+              title={`Descargar en ${exportFormat.toUpperCase()}`}
               className="w-12 h-12 md:w-14 md:h-14 rounded-full bg-alpine-sap text-black flex items-center justify-center hover:scale-110 active:scale-95 transition-all shadow-lg"
             >
-              <i className="fa-solid fa-wand-magic-sparkles text-base"></i>
+              <i className="fa-solid fa-download text-base"></i>
             </button>
             <button
               onClick={handleExportProject}

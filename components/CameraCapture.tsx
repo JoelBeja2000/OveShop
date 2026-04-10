@@ -27,6 +27,7 @@ interface CameraCaptureProps {
   sceneResolution?: { w: number, h: number } | null;
   sceneBgColor?: string;
   isTransparent?: boolean;
+  editingItemId?: string | null;
 }
 
 function getPerspectiveMatrix(w: number, h: number, p: PerspectivePoints) {
@@ -60,7 +61,7 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({
   placedItems, setPlacedItems, selectedId, setSelectedId, externalBackground, onDropItem, onFileUpload, zoom, setZoom, panOffset, setPanOffset,
   interactionMode = 'move', onAddText, setInteractionMode,
   drawingStrokes = [], setDrawingStrokes, activeBrush, onEditDrawing, onSaveToHistory,
-  sceneResolution, sceneBgColor = '#ffffff', isTransparent = false
+  sceneResolution, sceneBgColor = '#ffffff', isTransparent = false, editingItemId
 }) => {
   const canvasRef = useRef<HTMLDivElement>(null);
   const activeDrawingSvgRef = useRef<SVGSVGElement>(null);
@@ -69,6 +70,7 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({
   const [aspectRatio, setAspectRatio] = useState<number>(16 / 9);
   const [isWarpMode, setIsWarpMode] = useState(false);
   const [currentStroke, setCurrentStroke] = useState<DrawingStroke | null>(null);
+  const currentStrokeRef = useRef<DrawingStroke | null>(null);
   const isDrawingRef = useRef(false);
 
   useEffect(() => {
@@ -79,9 +81,11 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({
     }
   }, [externalBackground]);
 
-  const getLocalCoords = (e: React.MouseEvent | React.TouchEvent | MouseEvent | TouchEvent, svg: SVGSVGElement) => {
+  const getLocalCoords = (e: React.MouseEvent | React.TouchEvent | MouseEvent | TouchEvent) => {
+    const svg = globalDrawingSvgRef.current;
+    if (!svg) return { x: 0, y: 0 };
     const pt = svg.createSVGPoint();
-    if ('touches' in e) {
+    if ('touches' in e && e.touches.length > 0) {
       pt.x = e.touches[0].clientX;
       pt.y = e.touches[0].clientY;
     } else {
@@ -331,19 +335,25 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({
     const isDrawingModeActive = interactionMode === 'draw';
     if (!isDrawingModeActive || !activeBrush || !setDrawingStrokes) return;
     
-    // Choose the correct reference SVG for coordinate mapping ONLY
-    const refSvg = selectedId ? activeDrawingSvgRef.current : globalDrawingSvgRef.current;
-    if (!refSvg) return;
+    const mappingSvg = globalDrawingSvgRef.current;
+    if (!mappingSvg) return;
 
     e.stopPropagation();
-    const coords = getLocalCoords(e, refSvg);
+    const coords = getLocalCoords(e);
     isDrawingRef.current = true;
     
+    const generateId = () => {
+      if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+        return `stroke_${crypto.randomUUID().split('-')[0]}_${Date.now().toString(36)}`;
+      }
+      return `stroke_${Math.random().toString(36).substring(2, 9)}_${Date.now().toString(36)}`;
+    };
+
     if (activeBrush.type === 'eraser') {
-      handleEraserAction(coords.x, coords.y, refSvg);
+      handleEraserAction(coords.x, coords.y, mappingSvg);
     } else {
       const newStroke: DrawingStroke = {
-        id: `stroke_${Date.now().toString(36)}_${Math.random().toString(36).substr(2, 5)}`,
+        id: generateId(),
         segments: [{
           points: [coords],
           color: activeBrush.color,
@@ -356,15 +366,16 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({
         zIndex: 10
       };
       setCurrentStroke(newStroke);
+      currentStrokeRef.current = newStroke;
     }
 
     const onMove = (mv: MouseEvent | TouchEvent) => {
       if (!isDrawingRef.current) return;
       if ('touches' in mv) mv.preventDefault();
       
-      const moveCoords = getLocalCoords(mv, refSvg);
+      const moveCoords = getLocalCoords(mv);
       if (activeBrush.type === 'eraser') {
-        handleEraserAction(moveCoords.x, moveCoords.y, refSvg);
+        handleEraserAction(moveCoords.x, moveCoords.y, mappingSvg);
       } else {
         setCurrentStroke(prev => {
           if (!prev) return null;
@@ -372,23 +383,28 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({
           const lastSeg = { ...segments[segments.length - 1] };
           lastSeg.points = [...lastSeg.points, moveCoords];
           segments[segments.length - 1] = lastSeg;
-          return { ...prev, segments };
+          const updated = { ...prev, segments };
+          currentStrokeRef.current = updated;
+          return updated;
         });
       }
     };
 
     const onEnd = () => {
+      if (!isDrawingRef.current) return;
       isDrawingRef.current = false;
+      
       window.removeEventListener('mousemove', onMove as any);
       window.removeEventListener('mouseup', onEnd);
       window.removeEventListener('touchmove', onMove as any);
       window.removeEventListener('touchend', onEnd);
-      setCurrentStroke(prev => {
-        if (prev && setDrawingStrokes) {
-          setDrawingStrokes(old => [...old, prev]);
-        }
-        return null;
-      });
+
+      const finishedStroke = currentStrokeRef.current;
+      if (finishedStroke && setDrawingStrokes) {
+        setDrawingStrokes(old => [...old, finishedStroke]);
+      }
+      setCurrentStroke(null);
+      currentStrokeRef.current = null;
     };
 
     window.addEventListener('mousemove', onMove as any);
@@ -433,9 +449,6 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({
       return changed ? nextStrokes : prev;
     });
   };
-
-  // Safe checks for rendered items
-  const selectedItem = useMemo(() => placedItems.find(i => i.id === selectedId), [placedItems, selectedId]);
 
   const effectiveRatio = sceneResolution ? (sceneResolution.w / sceneResolution.h) : (aspectRatio || 1);
 
@@ -507,7 +520,7 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({
           }
           const p = item.perspective || { tl: { x: 0, y: 0 }, tr: { x: 0, y: 0 }, bl: { x: 0, y: 0 }, br: { x: 0, y: 0 } };
           const virtualW = 1000 * (itemW_pct / 100);
-          const virtualH = 1000 * (itemH_pct / 100);
+          const virtualH = virtualW / (item.aspectRatio || 1);
           const matrix = getPerspectiveMatrix(virtualW, virtualH, p);
 
           const h = {
@@ -563,30 +576,19 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({
                     {!item.textConfig.isRichText || !item.textConfig.richText ? item.textConfig.text : null}
                   </div>
                 ) : (
-                  <img src={item.image} className="w-full h-full object-contain drop-shadow-2xl" style={{ filter: `hue-rotate(${item.hueRotate}deg) saturate(${item.saturation}) brightness(${item.brightness})`, transform: `scaleX(${item.scaleX || 1})`, display: (item.drawingStrokes && item.drawingStrokes.length > 0) ? 'none' : 'block' }} alt="" />
+                  <img src={item.image || undefined} className="w-full h-full object-contain drop-shadow-2xl" style={{ filter: `hue-rotate(${item.hueRotate}deg) saturate(${item.saturation}) brightness(${item.brightness})`, transform: `scaleX(${item.scaleX || 1})`, display: (item.drawingStrokes && item.drawingStrokes.length > 0 && !item.image) ? 'none' : 'block' }} alt="" />
                 )}
                 
-                {/* 
-                   UNIFIED RENDERING LAYER (Static + Active) 
-                   Everything inside this div is affected by the item's transform: matrix. 
-                */}
-                <div className="absolute inset-0 pointer-events-none overflow-visible">
-                  {/* Static Strokes (visible if not currently active for editing in draw mode) */}
-                  {item.drawingStrokes && !(interactionMode === 'draw' && isSelected) && (
-                    item.drawingStrokes.map(stroke => <DrawingElement key={stroke.id} stroke={stroke} />)
+                <div className="absolute inset-0 pointer-events-none overflow-visible w-full h-full">
+                  {item.drawingStrokes && !(item.id === editingItemId && interactionMode === 'draw') && (
+                    item.drawingStrokes.map((stroke, sidx) => {
+                      const bw = item.drawingBounds ? (item.drawingBounds.width / 100) * 1000 : 1000;
+                      const bh = item.drawingBounds ? (item.drawingBounds.height / 100) * (1000 / effectiveRatio) : 1000;
+                      return <DrawingElement key={`static-${stroke.id}-${sidx}`} stroke={stroke} canvasWidth={bw} canvasHeight={bh} />;
+                    })
                   )}
-
-                  {/* Active Strokes (visible ONLY when editing this specific item in draw mode) */}
-                  {isSelected && interactionMode === 'draw' && (
-                    <>
-                      {drawingStrokes.map(stroke => <DrawingElement key={stroke.id} stroke={stroke} />)}
-                      {currentStroke && <DrawingElement stroke={currentStroke} />}
-                      {/* 
-                         COORDINATE REFERENCE: Invisible but matches the transformed coordinate space.
-                         We only use this for mapping. It's EMPTY so children aren't hidden by opacity.
-                      */}
-                      <svg ref={activeDrawingSvgRef} viewBox="0 0 100 100" className="absolute inset-0 w-full h-full opacity-0 pointer-events-none" preserveAspectRatio="none" />
-                    </>
+                  {item.id === editingItemId && (
+                    <svg ref={activeDrawingSvgRef} viewBox="0 0 100 100" className="absolute inset-0 w-full h-full opacity-0 pointer-events-none" preserveAspectRatio="none" />
                   )}
                 </div>
               </div>
@@ -616,7 +618,6 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({
                       ))}
                     </div>
                   )}
-                  {/* Floating Toolbar */}
                   <div className="absolute -bottom-24 left-1/2 flex items-center gap-3 bg-black/95 backdrop-blur-3xl p-2 rounded-full border border-white/10 z-[400] shadow-2xl animate-fade-in-up origin-top" style={{ transform: `translateX(-50%) scale(${1 / (item.scale * zoom)})` }} onMouseDown={e => e.stopPropagation()}>
                     <button onClick={(e) => { e.stopPropagation(); setPlacedItems(prev => prev.filter(i => i.id !== item.id)); }} className="w-8 h-8 bg-red-500/10 text-red-500 rounded-full hover:bg-red-500 hover:text-white transition-all flex items-center justify-center">
                       <i className="fa-solid fa-trash-can text-[10px]"></i>
@@ -634,30 +635,18 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({
           );
         })}
 
-        {/* 
-          GLOBAL EVENT CAPTURE LAYER (z-index 3000)
-          This layer covers the whole screen to allow drawing OUTSIDE item boxes.
-        */}
         {interactionMode === 'draw' && (
           <div 
             className="absolute inset-0 z-[3000] cursor-crosshair"
             onMouseDown={handleDrawingStart}
             onTouchStart={handleDrawingStart}
           >
-            {/* 
-               PREVIEW LAYER FOR NEW DRAWINGS (when selectedId is null) 
-               Visible even if coordinate ref is hidden.
-            */}
-            {!selectedId && (
-              <>
-                 <div className="absolute inset-0 pointer-events-none overflow-visible">
-                    {drawingStrokes.map(stroke => <DrawingElement key={stroke.id} stroke={stroke} />)}
-                    {currentStroke && <DrawingElement stroke={currentStroke} />}
-                 </div>
-                 {/* COORDINATE REFERENCE FOR NEW DRAWINGS: Invisible but spans full canvas */}
-                 <svg ref={globalDrawingSvgRef} viewBox="0 0 100 100" className="w-full h-full opacity-0 pointer-events-none" preserveAspectRatio="none" />
-              </>
-            )}
+            <div className="absolute inset-0 pointer-events-none overflow-visible">
+               {/* Global drawings and currently being drawn strokes */}
+               {drawingStrokes.map((stroke, idx) => <DrawingElement key={`global-${stroke.id}-${idx}`} stroke={stroke} canvasWidth={1000} canvasHeight={1000 / effectiveRatio} />)}
+               {currentStroke && <DrawingElement stroke={currentStroke} canvasWidth={1000} canvasHeight={1000 / effectiveRatio} />}
+            </div>
+            <svg ref={globalDrawingSvgRef} viewBox={`0 0 1000 ${1000 / effectiveRatio}`} className="absolute inset-0 w-full h-full opacity-0 pointer-events-none" preserveAspectRatio="none" />
           </div>
         )}
       </div>

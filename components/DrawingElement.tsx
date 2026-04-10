@@ -1,54 +1,56 @@
+
 import React from 'react';
 import { DrawingStroke, Point } from '../src/domain/types';
 
 interface DrawingElementProps {
   stroke: DrawingStroke;
+  /** The virtual canvas width used by the coordinate system. Defaults to 1000. */
+  canvasWidth?: number;
+  /** The virtual canvas height. Defaults to canvasWidth (square). */
+  canvasHeight?: number;
 }
 
-export const DrawingElement: React.FC<DrawingElementProps> = ({
-  stroke
-}) => {
-  const renderSegmentPath = (points: Point[]) => {
+export const DrawingElement: React.FC<DrawingElementProps> = ({ stroke, canvasWidth, canvasHeight }) => {
+  const getPathData = (points: Point[]) => {
     if (points.length === 0) return '';
-    if (points.length < 3) {
-      return points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
+    const first = points[0];
+    let path = `M ${first.x} ${first.y}`;
+    for (let i = 1; i < points.length; i++) {
+       path += ` L ${points[i].x} ${points[i].y}`;
     }
-    
-    // Quadratic curve smoothing
-    let path = `M ${points[0].x} ${points[0].y}`;
-    for (let i = 1; i < points.length - 1; i++) {
-        const p1 = { x: points[i].x, y: points[i].y };
-        const p2 = { x: points[i + 1].x, y: points[i + 1].y };
-        const mid = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
-        path += ` Q ${p1.x} ${p1.y} ${mid.x} ${mid.y}`;
-    }
-    const last = points[points.length - 1];
-    path += ` L ${last.x} ${last.y}`;
     return path;
   };
 
+  // Use the provided canvas dimensions, or detect from point values
+  const w = canvasWidth ?? 1000;
+  const h = canvasHeight ?? w;
+
   return (
     <svg
-      className="absolute inset-0 w-full h-full pointer-events-none overflow-visible"
-      viewBox="0 0 100 100"
+      width="100%"
+      height="100%"
+      viewBox={`0 0 ${w} ${h}`}
       preserveAspectRatio="none"
-      style={{ position: 'absolute', top: 0, left: 0 }}
+      className="absolute inset-0 pointer-events-none overflow-visible"
+      style={{ display: 'block' }}
     >
-      {stroke.segments.map((segment, idx) => {
-        const isHighlighter = segment.type === 'highlighter';
-        return (
+      {stroke.segments.map((seg, idx) => (
+        <g key={idx}>
           <path
-            key={`${stroke.id}-seg-${idx}`}
-            d={renderSegmentPath(segment.points)}
+            d={getPathData(seg.points)}
+            stroke={seg.color}
+            strokeWidth={seg.width}
+            strokeLinecap="round"
+            strokeLinejoin="round"
             fill="none"
-            stroke={segment.color}
-            strokeWidth={segment.width}
-            strokeLinecap={isHighlighter ? 'square' : 'round'}
-            strokeLinejoin={isHighlighter ? 'miter' : 'round'}
-            opacity={segment.opacity}
+            vectorEffect="non-scaling-stroke"
+            style={{ 
+              opacity: seg.opacity,
+              filter: seg.type === 'highlighter' ? 'blur(1px)' : 'none'
+            }}
           />
-        );
-      })}
+        </g>
+      ))}
     </svg>
   );
 };

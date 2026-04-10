@@ -22,7 +22,11 @@ export class GeminiAIAdapter {
         collageImage: string,
         placedItems: PlacedItem[],
         aspectRatio: "1:1" | "4:3" | "3:4" | "9:16" | "16:9",
-        relationGroups: Record<string, { prompt: string, color: string }> = {}
+        relationGroups: Record<string, { prompt: string, color: string }> = {},
+        drawingColorLabels: Record<string, string> = {},
+        customPalette: string[] = [],
+        sceneResolution: { w: number, h: number } | null = null,
+        isTransparent: boolean = false
     ): Promise<AIResponse> {
 
         // 1. Prepare Prompts
@@ -46,10 +50,24 @@ export class GeminiAIAdapter {
             return { members, prompt: data.prompt };
         });
 
-        const prompt = buildMainPrompt(strictItems, creativeItems, activeGroups);
+        const prompt = buildMainPrompt(
+            strictItems, 
+            creativeItems, 
+            activeGroups, 
+            drawingColorLabels, 
+            customPalette, 
+            sceneResolution, 
+            isTransparent
+        );
 
         // 2. Prepare Images
-        const processedBaseData = await ImageProcessor.blackoutOccludedAreas(backgroundImage, placedItems);
+        let processedBaseData = "";
+        if (backgroundImage) {
+            processedBaseData = await ImageProcessor.blackoutOccludedAreas(backgroundImage, placedItems);
+        } else if (sceneResolution) {
+            // Create a blank background if we have a resolution but no image
+            processedBaseData = await ImageProcessor.createBlankBackground(sceneResolution.w, sceneResolution.h, isTransparent ? 'transparent' : '#ffffff');
+        }
         const collageData = collageImage.includes(',') ? collageImage.split(',')[1] : collageImage;
 
         const parts: any[] = [
@@ -62,6 +80,7 @@ export class GeminiAIAdapter {
 
         // 3. Fetch and Append Reference Images
         for (const [index, item] of placedItems.entries()) {
+            if (!item.image) continue; // Skip drawings/assets without image
             try {
                 const base64Data = await this.fetchImageAsBase64(item.image);
                 parts.push({ text: `REFERENCE IMAGE FOR ITEM #${index} ("${item.name.toUpperCase()}"):` });
@@ -71,49 +90,69 @@ export class GeminiAIAdapter {
             }
         }
 
-        try {
-            const response = await this.genAI.models.generateContent({
-                model: 'gemini-3-pro-image-preview',
-                contents: [{ parts }],
-                config: {
-                    temperature: 0.85,
-                    imageConfig: { aspectRatio, imageSize: "1K" }
-                }
-            });
+        console.log('[RENDER-AI] Step B: Sending to Gemini API...');
+        
+        // Model fallback chain — Nano Banana image generation models
+        const imageModels = [
+            'gemini-3-pro-image-preview',       // Nano Banana Pro (original working model)
+            'gemini-3.1-flash-image-preview',   // Nano Banana 2
+            'gemini-2.5-flash-image',           // Nano Banana
+        ];
 
-            if (response.candidates?.[0]?.content?.parts) {
-                const imagePart = response.candidates[0].content.parts.find(p => p.inlineData);
-                const textPart = response.candidates[0].content.parts.find(p => p.text);
+        let lastError: any = null;
+        for (const modelName of imageModels) {
+            try {
+                const response = await this.genAI.models.generateContent({
+                    model: modelName,
+                    contents: [{ parts }],
+                    config: {
+                        temperature: 0.85,
+                        imageConfig: { aspectRatio, imageSize: "1K" }
+                    }
+                });
 
-                let usageAnalysis: Record<string, number> | undefined;
+                if (response.candidates?.[0]?.content?.parts) {
+                    const imagePart = response.candidates[0].content.parts.find(p => p.inlineData);
+                    const textPart = response.candidates[0].content.parts.find(p => p.text);
 
-                if (textPart?.text) {
-                    try {
-                        const jsonMatch = textPart.text.match(/```json\n([\s\S]*?)\n```/) || textPart.text.match(/{[\s\S]*}/);
-                        if (jsonMatch) {
-                            const jsonStr = jsonMatch[1] || jsonMatch[0];
-                            const parsed = JSON.parse(jsonStr);
-                            if (parsed.usageAnalysis) {
-                                usageAnalysis = parsed.usageAnalysis;
+                    let usageAnalysis: Record<string, number> | undefined;
+
+                    if (textPart?.text) {
+                        try {
+                            const jsonMatch = textPart.text.match(/```json\n([\s\S]*?)\n```/) || textPart.text.match(/{[\s\S]*}/);
+                            if (jsonMatch) {
+                                const jsonStr = jsonMatch[1] || jsonMatch[0];
+                                const parsed = JSON.parse(jsonStr);
+                                if (parsed.usageAnalysis) {
+                                    usageAnalysis = parsed.usageAnalysis;
+                                }
                             }
+                        } catch (e) {
+                            console.warn("Failed to parse usage analysis JSON", e);
                         }
-                    } catch (e) {
-                        console.warn("Failed to parse usage analysis JSON", e);
+                    }
+
+                    if (imagePart?.inlineData) {
+                        return {
+                            image: `data:image/png;base64,${imagePart.inlineData.data}`,
+                            usageAnalysis
+                        };
                     }
                 }
-
-                if (imagePart?.inlineData) {
-                    return {
-                        image: `data:image/png;base64,${imagePart.inlineData.data}`,
-                        usageAnalysis
-                    };
+                throw new Error("No image in response");
+            } catch (error: any) {
+                const msg = error.message || '';
+                lastError = error;
+                // If it's a 404/not-found error, try next model
+                if (msg.includes('404') || msg.includes('not found') || msg.includes('NOT_FOUND') || msg.includes('Requested entity')) {
+                    continue;
                 }
+                // For other errors (quota, invalid key, etc.), throw immediately
+                throw error;
             }
-            throw new Error("No image generated");
-        } catch (error) {
-            console.error("Gemini Adapter Error:", error);
-            throw error;
         }
+        // All models failed
+        throw lastError || new Error("No image generation model available");
     }
 
     private async fetchImageAsBase64(url: string): Promise<string> {

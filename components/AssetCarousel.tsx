@@ -157,7 +157,7 @@ const AssetCarousel: React.FC<AssetCarouselProps> = ({
 
                         <div className="w-20 h-20 shrink-0 bg-black/40 rounded-2xl flex items-center justify-center p-2 group-hover:scale-110 transition-transform overflow-hidden shadow-inner">
                           <img
-                            src={item.image}
+                            src={item.image || undefined}
                             style={{ filter: `hue-rotate(${item.hueRotate || 0}deg) saturate(${item.saturation || 1}) brightness(${item.brightness || 1})` }}
                             className="w-full h-full object-contain drop-shadow-md"
                             alt={item.name}

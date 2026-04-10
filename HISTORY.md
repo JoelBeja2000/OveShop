@@ -12,7 +12,8 @@
 - `oveshop`: Primary integration branch. / Rama de integración primaria.
 - `oveshop-pincel`: Feature branch for manual drawing. / Rama de dibujo manual.
 - `oveshop-text-mode`: Feature branch for Text Mode. / Rama para Modo Texto.
-- `oveshop-palette-fix`: Advanced palette management (Current). / Gestión avanzada de paleta.
+- `oveshop-palette-fix`: Advanced palette management. / Gestión avanzada de paleta.
+- `oveshop-extreme-fidelity-render`: High-fidelity semantic rendering engine (Current). / Motor de renderizado semántico de alta fidelidad.
 
 ---
 
@@ -28,3 +29,6 @@
 | `05e0983` | @antigravity | [AI] Text Mode Implementation #ai-history | - | Added `TextProperties` and system font support. |
 | `e4c3d59` | @antigravity | [AI] Integrated canvas config & grid #ai-history | - | Consolidation of canvas modal and drawing stabilization. |
 | `86777a5` | @antigravity | [AI] Advanced Palette Management #ai-history | - | Auto-add colors, Delete Mode, and UI sizing fixes. |
+| `1b0f547` | @antigravity | [AI] Drawing & Render Stabilization #ai-history | - | Fixed ImageProcessor hang, restored Gemini config, and stabilized stroke coordinates. |
+| `f02e1a9` | @antigravity | [AI] Extreme Fidelity Render Engine Implementation #ai-history | - | Nano Banana Protocol, Semantic Grounding, and UI stabilization. |
+

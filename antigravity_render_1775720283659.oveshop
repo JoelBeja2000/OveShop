@@ -1,0 +1,36 @@
+{
+  "version": "1.0.0",
+  "type": "AI_ASSIST_REQUEST",
+  "targetAgent": "Antigravity",
+  "protocol": "OveRender 1.0",
+  "canvas": {
+    "resolution": {
+      "w": 1000,
+      "h": 583
+    },
+    "backgroundColor": "#1a1a1a",
+    "isTransparent": false
+  },
+  "layers": [
+    {
+      "id": "draw_1775720276647",
+      "name": "Dibujo Personalizado",
+      "type": "image",
+      "prompt": "",
+      "materialLabels": {
+        "#41261f": "Tronco",
+        "#a2ad91": "Hojas de palmera"
+      },
+      "dimensions": {
+        "x": 57.15875244140625,
+        "y": 48.84080505371094,
+        "rotation": 1,
+        "scale": 1
+      },
+      "occlusion": "overlay"
+    }
+  ],
+  "relations": {},
+  "backgroundImage": "INCLUDED_IN_ASSETS",
+  "timestamp": "2026-04-09T07:38:03.656Z"
+}

@@ -147,4 +147,22 @@ export class ImageProcessor {
             img.src = src;
         });
     }
+
+    static async createBlankBackground(width: number, height: number, color: string): Promise<string> {
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+            if (color === 'transparent') {
+                ctx.clearRect(0, 0, width, height);
+            } else {
+                ctx.fillStyle = color;
+                ctx.fillRect(0, 0, width, height);
+            }
+        }
+        return canvas.toDataURL('image/jpeg', 0.95).split(',')[1];
+    }
 }
+
+
